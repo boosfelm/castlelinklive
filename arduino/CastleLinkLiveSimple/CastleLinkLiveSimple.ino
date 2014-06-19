@@ -45,7 +45,7 @@
 #define SERIAL_BUFSIZE  10
 
 /****************** CONFIGS ***********************/
-#define SERIAL_BAUD_RATE            38400
+#define SERIAL_BAUD_RATE            9600
 #define SOFTWARE_THROTTLE               1 
 //#define THROTTLE_IN_PIN                12
 #define nESC  2
@@ -191,6 +191,7 @@ void loop() {
   if (n > 0) {
       for (int i = 0; i < n; i++) {
           c = Serial.read();
+//          Serial.println(c);
           buffer[bufcount++] = c;
           if (bufcount == sizeof(buffer)) {
              bufcount = 0;
@@ -198,6 +199,7 @@ void loop() {
           }
           
           if (buffer[bufcount-1] == '\n') {
+            Serial.println("B");
              buffer[bufcount-1] = '\0';
              if (buffer[bufcount-2] == '\r')
                buffer[bufcount-2] = '\0';

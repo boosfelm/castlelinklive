@@ -46,8 +46,9 @@
 
 /****************** CONFIGS ***********************/
 #define SERIAL_BAUD_RATE            38400
-//#define SOFTWARE_THROTTLE               1 
-#define THROTTLE_IN_PIN                12
+#define SOFTWARE_THROTTLE               1 
+//#define THROTTLE_IN_PIN                12
+#define nESC  2
 
 // initializing throttle value for software generated throttle.
 // 50 (half-throttle) is the safe value: Castle ESCs will not arm
@@ -163,9 +164,9 @@ void setup() {
    */ 
 #ifdef SOFTWARE_THROTTLE
   autoGenThrottle = true;
-  if (! CastleLinkLive.begin(1)) {
+  if (! CastleLinkLive.begin(nESC)) {
 #else
-  if (! CastleLinkLive.begin(1, THROTTLE_IN_PIN)) {
+  if (! CastleLinkLive.begin(nESC, THROTTLE_IN_PIN)) {
 #endif
     Serial.println("Initialization error!");
   } 

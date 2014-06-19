@@ -378,6 +378,7 @@ uint8_t CastleLinkLiveLib::begin(uint8_t nESC, int throttlePinNumber, uint16_t t
    * rest of throttle receiving/generating initialization will not continue alone: 
    * program must explicitly call "throttleArm" function to continue.
    */
+   CastleLinkLive.throttleArm();
 
   _throttleMinTicks = throttleMin * (TIMER_FREQ / 1000000);
   _throttleMaxTicks = throttleMax * (TIMER_FREQ / 1000000);

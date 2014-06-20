@@ -495,7 +495,10 @@ class CastleLinkLiveLib {
        macro to let the library generate the throttle signal itself.
        @see GENERATE_THROTTLE
    */
+   uint8_t begin(uint8_t nESC, int throttlePinNumber1, int throttlePinNumber2);
+
    uint8_t begin(uint8_t nESC, int throttlePinNumber);
+
 
    /** \brief Starts the library indicating the number of ESC connected, the arduino pin that will
        be used to read throttle signal, minimum and maximum pulse duration for throttle signal
@@ -508,6 +511,9 @@ class CastleLinkLiveLib {
        (in microseconds: default value is 2000, and can be changed in CastleLinkLive_config.h).
    */
    uint8_t begin(uint8_t nESC, int throttlePinNumber, uint16_t throttleMin, uint16_t throttleMax);
+
+   uint8_t begin(uint8_t nESC, int throttlePinNumber1, int throttlePinNumber2, uint16_t throttleMin, uint16_t throttleMax);
+
    
    /** \brief Sets throttle value to drive the ESC(s) when in software generated throttle
        
@@ -621,13 +627,18 @@ class CastleLinkLiveLib {
 
   private:
    int _throttlePinNumber;
+  int _throttlePinNumber2;
    //uint8_t _nESC;
 
    volatile uint8_t *_pcicr;
    uint8_t _pcie;
+   uint8_t _pcie2;
    volatile uint8_t *_pcmsk;
+   volatile uint8_t *_pcmsk2;
    uint8_t _pcint;
+   uint8_t _pcint2;
    volatile uint8_t *_throttlePortModeReg;
+   volatile uint8_t *_throttlePortModeReg2;
    
    volatile uint8_t _throttle;
 

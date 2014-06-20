@@ -145,6 +145,7 @@ volatile uint8_t ledMod = LED_MAX_MOD;
 #endif
 
 uint8_t throttlePinMask;
+uint8_t throttlePinMask2;
 uint16_t throttlePulseHighTicks;
 uint16_t throttlePulseLowTicks;
 
@@ -288,7 +289,98 @@ uint8_t CastleLinkLiveLib::_setThrottlePinRegisters() {
 	  return false;
   }
 #endif
+
+  if(_throttlePinNumber2 !=-1 ) //Using two pwm inputs
+  {
+
+  uint8_t port2 = digitalPinToPort(_throttlePinNumber2);
   
+  if (port2 == NOT_A_PORT || port2 == port) return false; //They have to be on different Ports due to limitations for interrupts
+  
+#if defined (__AVR_ATmega32U4__)
+  if (port2 != PB) return false; //on ATmega32U4 we have PCINT only on PORTB
+#endif
+
+  _throttlePortModeReg2 = portModeRegister(port2); //Return DDR of port
+  throttlePinMask2 = digitalPinToBitMask(_throttlePinNumber2);
+  
+  switch(port2) {
+    case PB:
+       _pcmsk2 = &PCMSK0; //pin change mask register to set if pin change interrupt is enabled
+       _pcie2 = PCIE0;  //Same for whole pin series
+       break;
+
+#if defined (__AVR_ATmega168__) || defined(__AVR_ATmega328P__)
+    case PC:
+       _pcmsk2 = &PCMSK1;
+       _pcie2 = PCIE1;
+       break;
+      
+    case PD:
+       _pcmsk2 = &PCMSK2;
+       _pcie2 = PCIE2;
+       break;
+#endif
+
+    default:
+      return false;    
+  }
+
+#if defined (__AVR_ATmega168__) || defined(__AVR_ATmega328P__)
+  if (_throttlePinNumber2 >= 0 && _throttlePinNumber2 <= 7) { //0-7 => PORTD: PCINT16-23
+    _pcint2 = PCINT16 + _throttlePinNumber2; //entries of pcmsk
+  } else if (_throttlePinNumber2 >= 8 && _throttlePinNumber2 <= 13) { //8-13 => PORTB: PCINT0-5 {
+    _pcint2 = PCINT0 + (_throttlePinNumber2 - 8);
+  } else if (_throttlePinNumber2 >= A0 && _throttlePinNumber2 <= A5) { //A0-A5 => PORTC: PCINT8-13
+    _pcint2 = PCINT8 + (_throttlePinNumber2 - A0);
+  } else
+    return false;
+#elif defined (__AVR_ATmega32U4__)
+  switch(_throttlePinNumber) {
+  case 8:
+	  _pcint2 = PCINT4;
+	  break;
+
+  case 9:
+	  _pcint2 = PCINT5;
+	  break;
+
+  case 10:
+	  _pcint2 = PCINT6;
+	  break;
+
+  case 11:
+	  _pcint2 = PCINT7;
+	  break;
+
+  case 14:
+	  _pcint2 = PCINT3;
+	  break;
+
+  case 15:
+	  _pcint2 = PCINT1;
+	  break;
+
+  case 16:
+	  _pcint2 = PCINT2;
+	  break;
+
+  case 17:
+	  _pcint2 = PCINT0;
+	  break;
+  default:
+	  return false;
+  }
+#endif
+
+
+
+
+  }
+  
+  
+  
+
   return true;
 }
 
@@ -322,7 +414,7 @@ void CastleLinkLiveLib::setLed(uint8_t on) {
  
 uint8_t CastleLinkLiveLib::begin(uint8_t nESC, int throttlePinNumber, uint16_t throttleMin, uint16_t throttleMax) {
   if ( (nESC > MAX_ESCS) || (nESC <= 0) ) return false;
-  
+  _throttlePinNumber2 = -1;
   gInstalledEsc = nESC;
 
   _throttlePinNumber = throttlePinNumber;
@@ -353,10 +445,10 @@ uint8_t CastleLinkLiveLib::begin(uint8_t nESC, int throttlePinNumber, uint16_t t
 
   // set output compare match A of timer1 with number of ticks
   // corresponding to CASTLE_RESET_TIMEOUT
-  TIMER_SET_COMPA (TIMER_RESET_TICKS);
+  TIMER_SET_COMPA (TIMER_RESET_TICKS); //Set value to compare with timer
 
   // enable output compare match A interrupt generation
-  TIMER_ENABLE_COMPA();
+  TIMER_ENABLE_COMPA(); //interrupt when comparison is ture
 
   //init data structures
   for (int i = 0; i < nESC; i++) _init_data_structure(i);
@@ -390,9 +482,91 @@ uint8_t CastleLinkLiveLib::begin(uint8_t nESC, int throttlePinNumber, uint16_t t
   
 }
 
+
+uint8_t CastleLinkLiveLib::begin(uint8_t nESC, int throttlePinNumber1, int throttlePinNumber2, uint16_t throttleMin, uint16_t throttleMax) {
+  if ( (nESC > MAX_ESCS) || (nESC <= 0) ) return false;
+  
+  gInstalledEsc = nESC;
+
+  _throttlePinNumber = throttlePinNumber1;
+  _throttlePinNumber2 = throttlePinNumber2;
+  
+  if (_throttlePinNumber > GENERATE_THROTTLE) {
+  	if(_throttlePinNumber2 == GENERATE_THROTTLE)
+  		return false; //Doesnt make sense
+    if (! _setThrottlePinRegisters()) return false;
+  }
+  
+  cli();
+
+#ifdef DISABLE_ALL_PULLUPS  
+  MCUCR |= _BV(PUD); // disable all-port pull-ups
+#endif  
+  
+  _timer_init();
+
+  configEscINTs(nESC); //Sets what the interrupt should detect
+
+  escPinsHighMask = getEscPinsMask(nESC); //get pinmask of interrupt pins 
+  escPinsLowMask = ~ escPinsHighMask;
+
+  extIntClearMask = getEscIntClearMask(nESC); //interrupt flag register (can be used to clear flag)
+  extIntEnableMask = getEscIntEnableMask(nESC);  //enable interrupts
+  extIntDisableMask = ~ extIntEnableMask;
+
+  ESC_DDR |= escPinsHighMask; //set ESCs pins as outputs
+  ESC_WRITE_PORT |= escPinsHighMask; //set ESCs pins high
+
+  // set output compare match A of timer1 with number of ticks
+  // corresponding to CASTLE_RESET_TIMEOUT
+  TIMER_SET_COMPA (TIMER_RESET_TICKS); //Set value to compare with timer
+
+  // enable output compare match A interrupt generation
+  TIMER_ENABLE_COMPA(); //interrupt when comparison is ture
+
+  //init data structures
+  for (int i = 0; i < nESC; i++) _init_data_structure(i);
+
+  if (_throttlePinNumber == GENERATE_THROTTLE) { // if auto-generating throttle...
+    // set output compare match B with number of ticks
+    // corresponding to TG_PERIOD
+	  TIMER_SET_COMPB (TG_PERIOD_TICKS);
+
+	  TIMER_ENABLE_COMPB(); //enable output compare match B interrupt generation
+    
+  } else {
+    *_throttlePortModeReg &= ~ ( throttlePinMask ); //set throttle pin as input
+    *_throttlePortModeReg2 &= ~ ( throttlePinMask2 );
+
+    TIMER_ENABLE_OVF(); //enable timer overflow interrupt
+  }
+
+  /* 
+   * SAFETY
+   * rest of throttle receiving/generating initialization will not continue alone: 
+   * program must explicitly call "throttleArm" function to continue.
+   */
+   CastleLinkLive.throttleArm();
+
+  _throttleMinTicks = throttleMin * (TIMER_FREQ / 1000000);
+  _throttleMaxTicks = throttleMax * (TIMER_FREQ / 1000000);
+  _throttleIntervalTicks = (throttleMax - throttleMin) * (TIMER_FREQ / 1000000);
+  
+
+  sei(); //ready to go: enable interrupts
+  return true;
+  
+}
+
+
+uint8_t CastleLinkLiveLib::begin(uint8_t nESC, int throttlePinNumber1, int throttlePinNumber2) {
+  return begin(nESC, throttlePinNumber1, throttlePinNumber2, THROTTLE_MIN * 1000000.0f, THROTTLE_MAX * 1000000.0f);  
+}
+
 uint8_t CastleLinkLiveLib::begin(uint8_t nESC, int throttlePinNumber) {
   return begin(nESC, throttlePinNumber, THROTTLE_MIN * 1000000.0f, THROTTLE_MAX * 1000000.0f);  
 }
+
 uint8_t CastleLinkLiveLib::begin(uint8_t nESC) {
   return begin(nESC, GENERATE_THROTTLE, THROTTLE_MIN * 1000000.0f, THROTTLE_MAX * 1000000.0f);
 }
@@ -409,8 +583,15 @@ void CastleLinkLiveLib::throttleArm() {
     setThrottle(50);
     SET_THROTTLE_NOT_PRESENT();    
   } else {
+  	
     *_pcmsk = _BV(_pcint); //enable throttle pin to generate port-interrupt
-    *_pcicr = _BV(_pcie); //enable throttle pin port to generate interrupt    
+    *_pcicr = _BV(_pcie); //enable throttle pin port to generate interrupt 
+    if(_throttlePinNumber2 !=-1)
+    {
+    *_pcmsk2 = _BV(_pcint2); //enable throttle pin to generate port-interrupt
+    *_pcicr |= _BV(_pcie2); //enable throttle pin port to generate interrupt 
+	}
+      
   }
   
   SET_THROTTLE_NOT_PRESENT();
@@ -424,8 +605,18 @@ void CastleLinkLiveLib::throttleDisarm() {
   TIMER_STOP();
 
   if (_throttlePinNumber != GENERATE_THROTTLE) {
-    *_pcmsk &= ~ _BV(_pcint); //disable throttle pin port-interrupt generation
-    *_pcicr &= ~ _BV(_pcie); //disable throttle pin port interrupt generation
+  	
+    	*_pcmsk &= ~ _BV(_pcint); //disable throttle pin port-interrupt generation
+   		*_pcicr &= ~ _BV(_pcie); //disable throttle pin port interrupt generation
+
+   		if(_throttlePinNumber2 !=-1)
+    	{
+    		*_pcmsk2 &= ~ _BV(_pcint2);; //enable throttle pin to generate port-interrupt
+    		*_pcicr &= ~ _BV(_pcie2); //enable throttle pin port to generate interrupt 
+		}
+
+
+   	
   }
   
   LED_OFF();
@@ -521,7 +712,8 @@ uint8_t CastleLinkLiveLib::getData( uint8_t index, CASTLE_ESC_DATA *o) {
         o->outputPower = CLL_CALC_OUTPUT_POWER(value);
         break;
       case FRAME_RPM:
-        o->RPM = CLL_CALC_RPM(value);
+        o->RPM = CLL_CALC_RPM(value); 
+        o->RPM = getShaftRPM(o->RPM, n_poles);
         break;
       case FRAME_BEC_VOLTAGE:
         o->BECvoltage = CLL_CALC_BEC_VOLTAGE(value);
@@ -605,7 +797,7 @@ ISR(ESC4_ISR) {
 #endif
 
 //=== PinChange interrupt handlers: get throttle signal
-inline void throttleInterruptHandler(uint8_t pinStatus) {
+inline void throttleInterruptHandler(uint8_t pinStatus, int index) {
   if ( pinStatus ) {  // throttle pulse start
      ESC_WRITE_PORT &= escPinsLowMask; //write LOW to ESCs pins
      TIMER_CLEAR();
@@ -665,21 +857,21 @@ inline void throttleNotPresent() {
 #ifdef PCIE0
 // PORTB
 ISR(PCINT0_vect) {
-  throttleInterruptHandler( PINB & throttlePinMask );
+  throttleInterruptHandler( PINB & throttlePinMask,1 );
 }
 #endif
 
 #ifdef PCIE1
 //PORTC
 ISR(PCINT1_vect) {
-  throttleInterruptHandler( PINC & throttlePinMask );
+  throttleInterruptHandler( PINC & throttlePinMask,2 );
 }
 #endif
 
 #ifdef PCIE2
 //PORTD
 ISR(PCINT2_vect) {
-  throttleInterruptHandler( PIND & throttlePinMask );
+  throttleInterruptHandler( PIND & throttlePinMask,3 );
 }
 #endif
 

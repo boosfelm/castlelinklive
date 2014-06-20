@@ -76,6 +76,7 @@
 */
 #define THROTTLE_MAX 0.002f   // 2ms max
 
+    #define n_poles 18
 /**
     Since castle pins are externally pulled-up as required by castle link live spec,
     we need to keep disabled internal pullups when pins are used as inputs. We have two choices:

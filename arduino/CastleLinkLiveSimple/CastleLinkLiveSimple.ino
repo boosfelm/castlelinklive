@@ -46,8 +46,10 @@
 
 /****************** CONFIGS ***********************/
 #define SERIAL_BAUD_RATE            9600
-#define SOFTWARE_THROTTLE               1 
-//#define THROTTLE_IN_PIN                12
+//#define SOFTWARE_THROTTLE               1 
+#define THROTTLE_IN_PIN_1               12
+//#define THROTTLE_IN_PIN_2               # //Must not be on same port
+
 #define nESC  2
 
 // initializing throttle value for software generated throttle.
@@ -166,7 +168,11 @@ void setup() {
   autoGenThrottle = true;
   if (! CastleLinkLive.begin(nESC)) {
 #else
-  if (! CastleLinkLive.begin(nESC, THROTTLE_IN_PIN)) {
+  #ifdef THROTTLE_IN_PIN_2
+      if (! CastleLinkLive.begin(nESC, THROTTLE_IN_PIN_1, THROTTLE_IN_PIN_2)) {
+        #else
+            if (! CastleLinkLive.begin(nESC, THROTTLE_IN_PIN_1)) {
+  #endif
 #endif
     Serial.println("Initialization error!");
   } 

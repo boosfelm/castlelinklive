@@ -217,13 +217,13 @@ uint8_t CastleLinkLiveLib::_setThrottlePinRegisters() {
   if (port != PB) return false; //on ATmega32U4 we have PCINT only on PORTB
 #endif
 
-  _throttlePortModeReg = portModeRegister(port);
+  _throttlePortModeReg = portModeRegister(port); //Return DDR of port
   throttlePinMask = digitalPinToBitMask(_throttlePinNumber);
   
   switch(port) {
     case PB:
-       _pcmsk = &PCMSK0;
-       _pcie = PCIE0;
+       _pcmsk = &PCMSK0; //pin change mask register to set if pin change interrupt is enabled
+       _pcie = PCIE0;  //Same for whole pin series
        break;
 
 #if defined (__AVR_ATmega168__) || defined(__AVR_ATmega328P__)
@@ -244,7 +244,7 @@ uint8_t CastleLinkLiveLib::_setThrottlePinRegisters() {
 
 #if defined (__AVR_ATmega168__) || defined(__AVR_ATmega328P__)
   if (_throttlePinNumber >= 0 && _throttlePinNumber <= 7) { //0-7 => PORTD: PCINT16-23
-    _pcint = PCINT16 + _throttlePinNumber;
+    _pcint = PCINT16 + _throttlePinNumber; //entries of pcmsk
   } else if (_throttlePinNumber >= 8 && _throttlePinNumber <= 13) { //8-13 => PORTB: PCINT0-5 {
     _pcint = PCINT0 + (_throttlePinNumber - 8);
   } else if (_throttlePinNumber >= A0 && _throttlePinNumber <= A5) { //A0-A5 => PORTC: PCINT8-13
@@ -339,13 +339,13 @@ uint8_t CastleLinkLiveLib::begin(uint8_t nESC, int throttlePinNumber, uint16_t t
   
   _timer_init();
 
-  configEscINTs(nESC);
+  configEscINTs(nESC); //Sets what the interrupt should detect
 
-  escPinsHighMask = getEscPinsMask(nESC);
+  escPinsHighMask = getEscPinsMask(nESC); //get pinmask of interrupt pins 
   escPinsLowMask = ~ escPinsHighMask;
 
-  extIntClearMask = getEscIntClearMask(nESC);
-  extIntEnableMask = getEscIntEnableMask(nESC);
+  extIntClearMask = getEscIntClearMask(nESC); //interrupt flag register (can be used to clear flag)
+  extIntEnableMask = getEscIntEnableMask(nESC);  //enable interrupts
   extIntDisableMask = ~ extIntEnableMask;
 
   ESC_DDR |= escPinsHighMask; //set ESCs pins as outputs

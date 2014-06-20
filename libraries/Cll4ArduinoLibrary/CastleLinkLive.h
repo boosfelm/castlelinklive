@@ -642,6 +642,7 @@ class CastleLinkLiveLib {
    
    volatile uint8_t _throttle;
 
+
    void _init_data_structure(int i);
    void _timer_init();
    uint8_t _setThrottlePinRegisters();

@@ -43,6 +43,15 @@
   available and enabled.
 */
 
+
+/*
+	TODO: Adapt tick in esc interrupt routine; adapt tick reset; write different things on esc pins
+*/
+
+
+
+
+
 #include "pins_arduino.h"
 #if defined(ARDUINO) && ARDUINO >= 100
 #include "Arduino.h"
@@ -164,6 +173,12 @@ uint16_t _throttleIntervalTicks;
 void (*throttlePresenceHandler) (uint8_t) = NULL;
 void (*dataAvailableHandler) (uint8_t escIndex, CASTLE_RAW_DATA *data) = NULL;
 
+uint8_t port;
+uint8_t port2;
+
+   volatile uint16_t _time_throttle1;
+   volatile uint16_t _time_throttle2;
+
 
 /* 
  * CastleLinkLiveLib class
@@ -210,7 +225,7 @@ void CastleLinkLiveLib::_timer_init() {
 uint8_t CastleLinkLiveLib::_setThrottlePinRegisters() {
   _pcicr = &PCICR;
   
-  uint8_t port = digitalPinToPort(_throttlePinNumber);
+  port = digitalPinToPort(_throttlePinNumber);
   
   if (port == NOT_A_PORT) return false;
   
@@ -293,7 +308,7 @@ uint8_t CastleLinkLiveLib::_setThrottlePinRegisters() {
   if(_throttlePinNumber2 !=-1 ) //Using two pwm inputs
   {
 
-  uint8_t port2 = digitalPinToPort(_throttlePinNumber2);
+  port2 = digitalPinToPort(_throttlePinNumber2);
   
   if (port2 == NOT_A_PORT || port2 == port) return false; //They have to be on different Ports due to limitations for interrupts
   
@@ -797,9 +812,13 @@ ISR(ESC4_ISR) {
 #endif
 
 //=== PinChange interrupt handlers: get throttle signal
-inline void throttleInterruptHandler(uint8_t pinStatus, int index) {
+inline void throttleInterruptHandler(uint8_t pinStatus, uint8_t port_int) {
+	static uint8_t throttle_counter = 0;
+	throttle_counter++;
+
   if ( pinStatus ) {  // throttle pulse start
      ESC_WRITE_PORT &= escPinsLowMask; //write LOW to ESCs pins
+     if(throttle_counter==1)
      TIMER_CLEAR();
 #if (LED_DISABLE == 0)
      ledCnt++;
@@ -814,7 +833,22 @@ inline void throttleInterruptHandler(uint8_t pinStatus, int index) {
 #if (LED_DISABLE == 0)
      uint16_t t = TCNT1;
 #endif
+     if(throttle_counter == 2)
+     {
+     	if(port_int == port)
+     	{
+     		_time_throttle1 = TIMER_CNT;
+     	}
+     	else if(port_int == port2)
+     	{
+     		_time_throttle2 = TIMER_CNT;
+     	}
+
+
+     	
      TIMER_CLEAR();
+     throttle_counter = 0;
+	 }
 
 #if (LED_DISABLE == 0)
      if (t < _throttleMinTicks)
@@ -857,21 +891,21 @@ inline void throttleNotPresent() {
 #ifdef PCIE0
 // PORTB
 ISR(PCINT0_vect) {
-  throttleInterruptHandler( PINB & throttlePinMask,1 );
+  throttleInterruptHandler( PINB & throttlePinMask, PORTB );
 }
 #endif
 
 #ifdef PCIE1
 //PORTC
 ISR(PCINT1_vect) {
-  throttleInterruptHandler( PINC & throttlePinMask,2 );
+  throttleInterruptHandler( PINC & throttlePinMask, PORTC );
 }
 #endif
 
 #ifdef PCIE2
 //PORTD
 ISR(PCINT2_vect) {
-  throttleInterruptHandler( PIND & throttlePinMask,3 );
+  throttleInterruptHandler( PIND & throttlePinMask, PORTD );
 }
 #endif
 

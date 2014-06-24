@@ -101,7 +101,7 @@
 
 #define TG_PERIOD_TICKS (THROTTLEGEN_PERIOD * TIMER_FREQ) //20ms period
 
-#define CASTLE_RESET_TIMEOUT 0.006f //6 ms: castle tick has to come before
+#define CASTLE_RESET_TIMEOUT 0.0075f //6 ms: castle tick has to come before //Plus one due as maximum diff in pwm signals is 1 ms
 #define TIMER_RESET_TICKS (CASTLE_RESET_TIMEOUT * TIMER_FREQ)
 
 #define THROTTLE_SIGNAL_TIMEOUT 1.0f //1 sec timeout from RX
@@ -160,11 +160,21 @@ uint16_t throttlePulseLowTicks;
 
 uint8_t esc1PinMask;
 uint8_t escPinsHighMask;
+uint8_t escPinsHighMask1;
+uint8_t escPinsHighMask2;
+uint8_t escPinsLowMask1;
+uint8_t escPinsLowMask2;
 uint8_t escPinsLowMask;
 
 uint8_t extIntClearMask;
+uint8_t extIntClearMask1;
+uint8_t extIntClearMask2;
 uint8_t extIntEnableMask;
+uint8_t extIntEnableMask1;
+uint8_t extIntEnableMask2;
 uint8_t extIntDisableMask;
+uint8_t extIntDisableMask1;
+uint8_t extIntDisableMask2;
 
 uint16_t _throttleMinTicks;
 uint16_t _throttleMaxTicks;
@@ -178,6 +188,7 @@ uint8_t port2;
 
    volatile uint16_t _time_throttle1;
    volatile uint16_t _time_throttle2;
+   volatile bool is_time_throttle2_after_time_throttle1;
 
 
 /* 
@@ -500,7 +511,7 @@ uint8_t CastleLinkLiveLib::begin(uint8_t nESC, int throttlePinNumber, uint16_t t
 
 uint8_t CastleLinkLiveLib::begin(uint8_t nESC, int throttlePinNumber1, int throttlePinNumber2, uint16_t throttleMin, uint16_t throttleMax) {
   if ( (nESC > MAX_ESCS) || (nESC <= 0) ) return false;
-  
+  Serial.println("SOSO");
   gInstalledEsc = nESC;
 
   _throttlePinNumber = throttlePinNumber1;
@@ -522,12 +533,22 @@ uint8_t CastleLinkLiveLib::begin(uint8_t nESC, int throttlePinNumber1, int throt
 
   configEscINTs(nESC); //Sets what the interrupt should detect
 
-  escPinsHighMask = getEscPinsMask(nESC); //get pinmask of interrupt pins 
+  escPinsHighMask = getEscPinsMask(nESC); //get pinmask of interrupt pins
+  escPinsHighMask1 = getEscPinsMask(1);
+  escPinsHighMask2 = ~escPinsHighMask1 & escPinsHighMask;
   escPinsLowMask = ~ escPinsHighMask;
+  escPinsLowMask1 = ~ escPinsHighMask1;
+  escPinsLowMask2 = ~ escPinsHighMask2;
 
   extIntClearMask = getEscIntClearMask(nESC); //interrupt flag register (can be used to clear flag)
+  extIntClearMask1 = getEscIntClearMask(1);
+  extIntClearMask2 = extIntClearMask & ~extIntClearMask1;
   extIntEnableMask = getEscIntEnableMask(nESC);  //enable interrupts
+  extIntEnableMask1 = getEscIntEnableMask(1);
+  extIntEnableMask2 = extIntEnableMask & ~extIntEnableMask1;
   extIntDisableMask = ~ extIntEnableMask;
+  extIntDisableMask1 = ~ extIntEnableMask1;
+  extIntDisableMask2 = ~ extIntEnableMask2;
 
   ESC_DDR |= escPinsHighMask; //set ESCs pins as outputs
   ESC_WRITE_PORT |= escPinsHighMask; //set ESCs pins high
@@ -728,7 +749,6 @@ uint8_t CastleLinkLiveLib::getData( uint8_t index, CASTLE_ESC_DATA *o) {
         break;
       case FRAME_RPM:
         o->RPM = CLL_CALC_RPM(value); 
-        o->RPM = getShaftRPM(o->RPM, n_poles);
         break;
       case FRAME_BEC_VOLTAGE:
         o->BECvoltage = CLL_CALC_BEC_VOLTAGE(value);
@@ -767,18 +787,35 @@ uint16_t CastleLinkLiveLib::getShaftRPM(uint16_t eRPM, uint8_t motorPoles) {
 
 //=== INT0/INT1/INT... (external interrupts) handlers: get data from ESC(s)
 inline void escInterruptHandler(uint8_t index) {
-  uint16_t ticks = TIMER_CNT;
+	uint16_t ticks;
+	if(index == 0)
+	{
+   ticks = TIMER_CNT;
+
+	}
+	else
+	{
+			if(is_time_throttle2_after_time_throttle1)
+				ticks = TIMER_CNT - _time_throttle2;
+			else
+				ticks = TIMER_CNT + _time_throttle1 - _time_throttle2;		
+	}
 
   if (ticks == 0) return; //timer was stopped
-  
+
+
   CASTLE_PRIV_DATA *d = &(data[index]);
   
   d->frameIdx++;
   
   d->ticks[d->frameIdx] = ticks;
+
   d->ticked = true;
+
+
   
   d->ready = (d->frameIdx == DATA_FRAME_CNT -1);
+
 }
 
 #ifdef ESC0_ISR
@@ -813,61 +850,61 @@ ISR(ESC4_ISR) {
 
 //=== PinChange interrupt handlers: get throttle signal
 inline void throttleInterruptHandler(uint8_t pinStatus, uint8_t port_int) {
-	static uint8_t throttle_counter = 0;
-	throttle_counter++;
 
+	
   if ( pinStatus ) {  // throttle pulse start
-     ESC_WRITE_PORT &= escPinsLowMask; //write LOW to ESCs pins
-     if(throttle_counter==1)
+  //Serial.println("in");
+  	if(port_int == port)
+  	{
+     ESC_WRITE_PORT &= escPinsLowMask1; //write LOW to ESCs pins
      TIMER_CLEAR();
-#if (LED_DISABLE == 0)
-     ledCnt++;
-     ledCnt = ledCnt % ledMod;
-     if (ledCnt == 0)
-       LED_ON();
-     else
-       LED_OFF();
-#endif
-  } else {                            // throttle pulse end
-     ESC_WRITE_PORT |= escPinsHighMask; //write high to ESCs pins
-#if (LED_DISABLE == 0)
-     uint16_t t = TCNT1;
-#endif
-     if(throttle_counter == 2)
-     {
-     	if(port_int == port)
-     	{
-     		_time_throttle1 = TIMER_CNT;
-     	}
-     	else if(port_int == port2)
-     	{
-     		_time_throttle2 = TIMER_CNT;
-     	}
+     _time_throttle1=0;
+     //Serial.println("port1 in");
+  	}
+ else 
+ {
+ 	ESC_WRITE_PORT &= escPinsLowMask2;
+ 	_time_throttle2 = 0;
+ }
 
+ 	
 
+  } else {   
+    //Serial.println("out");
+                         // throttle pulse end
+  	if(port_int == port)
+  	{
+     ESC_WRITE_PORT |= escPinsHighMask1; //write high to ESCs pins
+     _time_throttle1 = TIMER_CNT;
+     TIMER_CLEAR();
+     ESC_DDR &= escPinsLowMask1; //set esc pins as inputs
+     EIFR |= extIntClearMask1; // clear INTn flags before enabling interrupts
+     EIMSK |= extIntEnableMask1; //enable interrupts on INTn
+     if(_time_throttle2 == 0)
+     is_time_throttle2_after_time_throttle1 = true;
+
+     	  	}
+ 	else
+ 	{
+ 	_time_throttle2 = TIMER_CNT;
+ 	ESC_WRITE_PORT |= escPinsHighMask2;
+ 	ESC_DDR &= escPinsLowMask2; //set esc pins as inputs
+ 	EIFR |= extIntClearMask2; // clear INTn flags before enabling interrupts
+     EIMSK |= extIntEnableMask2; //enable interrupts on INTn
+     if(_time_throttle1 == 0)
+     is_time_throttle2_after_time_throttle1 = false;
+    }
+     		
      	
-     TIMER_CLEAR();
-     throttle_counter = 0;
-	 }
+     	
 
-#if (LED_DISABLE == 0)
-     if (t < _throttleMinTicks)
-       t = 0;
-     else
-       t -= _throttleMinTicks;
+
+
      
-     if (t >= _throttleIntervalTicks)
-       ledMod = 1;
-     else
-       ledMod = 100 - ( t / ((float) (_throttleIntervalTicks)) * 100.0f) + 1;
-#endif
-
-     ESC_DDR &= escPinsLowMask; //set esc pins as inputs
 #ifndef DISABLE_ALL_PULLUPS  
      ESC_WRITE_PORT &= escPinsLowMask; //write LOW to esc pins to disable pullups if not globally disabled
 #endif
-     EIFR |= extIntClearMask; // clear INTn flags before enabling interrupts
-     EIMSK |= extIntEnableMask; //enable interrupts on INTn
+     
   }
   
   throttleFailCnt = 0; //reset throttle failure counter  
@@ -891,21 +928,21 @@ inline void throttleNotPresent() {
 #ifdef PCIE0
 // PORTB
 ISR(PCINT0_vect) {
-  throttleInterruptHandler( PINB & throttlePinMask, PORTB );
+  throttleInterruptHandler( PINB & throttlePinMask, PB );
 }
 #endif
 
 #ifdef PCIE1
 //PORTC
 ISR(PCINT1_vect) {
-  throttleInterruptHandler( PINC & throttlePinMask, PORTC );
+  throttleInterruptHandler( PINC & throttlePinMask, PC );
 }
 #endif
 
 #ifdef PCIE2
 //PORTD
 ISR(PCINT2_vect) {
-  throttleInterruptHandler( PIND & throttlePinMask, PORTD );
+  throttleInterruptHandler( PIND & throttlePinMask2, PD );
 }
 #endif
 
@@ -913,6 +950,7 @@ ISR(PCINT2_vect) {
 
 // castle data timeout
 ISR(TIMER_COMPA_ISR) {
+	//Serial.println("Timeout");
   EIMSK &= extIntDisableMask; //disable INTn interrupt
   // timeout elapsed, so restore output mode for ESC pins in any case
 #ifndef DISABLE_ALL_PULLUPS  
@@ -923,12 +961,21 @@ ISR(TIMER_COMPA_ISR) {
   for (int i = 0; i < gInstalledEsc; i++) {
 	CASTLE_PRIV_DATA *d = &(data[i]);
 
+	static int test = 0;
+
     //if castle ESC ticked some data in, reset the ticked indicator for next cycle
     //otherwise, it was a reset frame
     if (d->ticked)
+    	{
       d->ticked = false;
+     
+    }
     else
+    {
+    
+
       d->frameIdx = FRAME_RESET;
+}
 
     if (d->frameIdx == FRAME_RESET && d->ready) {
       flags &= ~ _BV(i); //data for this ESC is ready: clear busy flag

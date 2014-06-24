@@ -48,7 +48,7 @@
 #define SERIAL_BAUD_RATE            9600
 //#define SOFTWARE_THROTTLE               1 
 #define THROTTLE_IN_PIN_1               12
-//#define THROTTLE_IN_PIN_2               # //Must not be on same port
+#define THROTTLE_IN_PIN_2                7//Must not be on same port
 
 #define nESC  2
 
@@ -167,9 +167,11 @@ void setup() {
 #ifdef SOFTWARE_THROTTLE
   autoGenThrottle = true;
   if (! CastleLinkLive.begin(nESC)) {
+    
 #else
   #ifdef THROTTLE_IN_PIN_2
       if (! CastleLinkLive.begin(nESC, THROTTLE_IN_PIN_1, THROTTLE_IN_PIN_2)) {
+        
         #else
             if (! CastleLinkLive.begin(nESC, THROTTLE_IN_PIN_1)) {
   #endif
@@ -194,52 +196,52 @@ void loop() {
   int n = Serial.available();
   int c = 0;
   
-  if (n > 0) {
-      for (int i = 0; i < n; i++) {
-          c = Serial.read();
-//          Serial.println(c);
-          buffer[bufcount++] = c;
-          if (bufcount == sizeof(buffer)) {
-             bufcount = 0;
-             break; 
-          }
-          
-          if (buffer[bufcount-1] == '\n') {
-            Serial.println("B");
-             buffer[bufcount-1] = '\0';
-             if (buffer[bufcount-2] == '\r')
-               buffer[bufcount-2] = '\0';
-               
-             bufcount = 0;
-
-             if (buffer[0] == 'T' && autoGenThrottle) {
-               uint8_t t = strtol(buffer + 1, NULL, 10);
-               
-               //conditioning throttle 0->100
-               if (t < 0) t = 0;
-               if (t > 100) t = 100;
-               
-               Serial.print("Set throttle to: ");
-               Serial.println((int) t);
-               throttle = t;
-             } else if (buffer[0] == 'S' && autoGenThrottle) {
-               sendThrottle = ! sendThrottle;
-               if (sendThrottle)
-                 Serial.println("Software throttle started");
-               else 
-                 Serial.println("Software throttle stopped");
-             } else if (buffer[0] == 'R') {
-               rawData = ! rawData; 
-               if (rawData) 
-                 Serial.println("Printing data in RAW format");
-               else
-                 Serial.println("Printing data in HR format");
-             } else {
-               Serial.println("Unrecognized command"); 
-             }
-          }
-      }
-  }
+//  if (n > 0) {
+//      for (int i = 0; i < n; i++) {
+//          c = Serial.read();
+////          Serial.println(c);
+//          buffer[bufcount++] = c;
+//          if (bufcount == sizeof(buffer)) {
+//             bufcount = 0;
+//             break; 
+//          }
+//          
+//          if (buffer[bufcount-1] == '\n') {
+//            Serial.println("B");
+//             buffer[bufcount-1] = '\0';
+//             if (buffer[bufcount-2] == '\r')
+//               buffer[bufcount-2] = '\0';
+//               
+//             bufcount = 0;
+//
+//             if (buffer[0] == 'T' && autoGenThrottle) {
+//               uint8_t t = strtol(buffer + 1, NULL, 10);
+//               
+//               //conditioning throttle 0->100
+//               if (t < 0) t = 0;
+//               if (t > 100) t = 100;
+//               
+//               Serial.print("Set throttle to: ");
+//               Serial.println((int) t);
+//               throttle = t;
+//             } else if (buffer[0] == 'S' && autoGenThrottle) {
+//               sendThrottle = ! sendThrottle;
+//               if (sendThrottle)
+//                 Serial.println("Software throttle started");
+//               else 
+//                 Serial.println("Software throttle stopped");
+//             } else if (buffer[0] == 'R') {
+//               rawData = ! rawData; 
+//               if (rawData) 
+//                 Serial.println("Printing data in RAW format");
+//               else
+//                 Serial.println("Printing data in HR format");
+//             } else {
+//               Serial.println("Unrecognized command"); 
+//             }
+//          }
+//      }
+//  }
 
   // Setting throttle value: when in software-throttle mode
   // you have to set throttle at least every second or CastleLinkLive

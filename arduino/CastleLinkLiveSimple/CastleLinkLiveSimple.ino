@@ -41,6 +41,7 @@
 
 #include "CastleLinkLiveSimple.h"
 #include "CastleLinkLive.h"
+#include <Wire.h>
 
 #define SERIAL_BUFSIZE  10
 
@@ -129,6 +130,10 @@ void print_data(CASTLE_RAW_DATA *d) {
   Serial.println(d->ticks[FRAME_TEMP2]);
   Serial.println("************** EOD **************");
 }
+  CASTLE_ESC_DATA escHR0;
+  CASTLE_ESC_DATA escHR1;
+  byte *i2cdata = new byte[20];
+
 
 /*
  * event-handling funtion to attach to CastleLinkLive to be notified
@@ -144,6 +149,11 @@ void throttlePresence(boolean presence) {
 void setup() {
   Serial.begin(SERIAL_BAUD_RATE);
   Serial.print("CastleLinkLive-SimpleSerialMonitor is starting... ");
+  Wire.begin(2);
+  Wire.onRequest(requestEvent); // register event
+
+
+
   
   CastleLinkLive.init();
   
@@ -180,109 +190,33 @@ void setup() {
   } 
   
   Serial.println("GO!");
+  
 }
 
 void loop() {
-  /* reading commands from serial port:
-   * - T<throttle>: set throttle to <throttle> (0-100). 
-   *                Example: T67 -> will set throttle at 67%
-   *                (only valid in software throttle mode)
-   *
-   * - S:           disables/enables throttle signal (for test purposes)
-   *                (only valid in software throttle mode)
-   *
-   * - R:           toggles Human-Readable vs raw data printing
-   */
-  int n = Serial.available();
-  int c = 0;
   
-//  if (n > 0) {
-//      for (int i = 0; i < n; i++) {
-//          c = Serial.read();
-////          Serial.println(c);
-//          buffer[bufcount++] = c;
-//          if (bufcount == sizeof(buffer)) {
-//             bufcount = 0;
-//             break; 
-//          }
-//          
-//          if (buffer[bufcount-1] == '\n') {
-//            Serial.println("B");
-//             buffer[bufcount-1] = '\0';
-//             if (buffer[bufcount-2] == '\r')
-//               buffer[bufcount-2] = '\0';
-//               
-//             bufcount = 0;
-//
-//             if (buffer[0] == 'T' && autoGenThrottle) {
-//               uint8_t t = strtol(buffer + 1, NULL, 10);
-//               
-//               //conditioning throttle 0->100
-//               if (t < 0) t = 0;
-//               if (t > 100) t = 100;
-//               
-//               Serial.print("Set throttle to: ");
-//               Serial.println((int) t);
-//               throttle = t;
-//             } else if (buffer[0] == 'S' && autoGenThrottle) {
-//               sendThrottle = ! sendThrottle;
-//               if (sendThrottle)
-//                 Serial.println("Software throttle started");
-//               else 
-//                 Serial.println("Software throttle stopped");
-//             } else if (buffer[0] == 'R') {
-//               rawData = ! rawData; 
-//               if (rawData) 
-//                 Serial.println("Printing data in RAW format");
-//               else
-//                 Serial.println("Printing data in HR format");
-//             } else {
-//               Serial.println("Unrecognized command"); 
-//             }
-//          }
-//      }
-//  }
-
-  // Setting throttle value: when in software-throttle mode
-  // you have to set throttle at least every second or CastleLinkLive
-  // will alarm.
-  if (autoGenThrottle && sendThrottle) CastleLinkLive.setThrottle(throttle);
-
-  delay(setThrottleDelay);
-  
-  // to not flood terminal, data report is printed every second or so.
-  loopCnt++;
-  loopCnt = loopCnt % (printDelay / setThrottleDelay);
-
-  if (loopCnt == 0) {
-    Serial.print("Waiting for data...");
-    
-    // debug
-    unsigned long startWait = millis();
-
-    CASTLE_RAW_DATA escRaw;
-    CASTLE_ESC_DATA escHR;
-
-    if (rawData) {
-      if (CastleLinkLive.getData(0, &escRaw)) {
-        Serial.println(" ");
-        print_data(&escRaw);
-      } else
-        Serial.println(" No data");
-    } else {
-      if (CastleLinkLive.getData(0, &escHR)) {
-        Serial.println(" ");
-        print_data(&escHR);
-      } else
-        Serial.println(" No data");
-    }
-      
-    unsigned long waited = millis() - startWait;
-    
-    Serial.print("Waited (ms): ");
-    Serial.println(waited);
-    Serial.println(" ");    
+  if (CastleLinkLive.getData(0, &escHR0))// && CastleLinkLive.getData(1, &escHR1))
+  {
+  float data_float[5]={escHR0.voltage, escHR0.current, escHR0.RPM, escHR0.BECvoltage, escHR0.BECcurrent};//, escHR1.voltage, escHR1.current, escHR1.RPM, escHR1.BECvoltage, escHR1.BECcurrent};
+  i2cdata = (byte *)data_float; 
+                       // as expected by master
+                       Serial.println("good");
   }
-  
+  else 
+{
+float data_float[5]={0,0,0,0,0};//,0,0,0,0,0};
+i2cdata = (byte *)data_float; 
+                       // as expected by master
+                       Serial.println("bad");
+}
   
 }
+void requestEvent()
+{
+
+   Wire.write(i2cdata,20); // respond with message of 6 bytes
+  
+}
+  
+
+

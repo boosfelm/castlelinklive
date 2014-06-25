@@ -195,12 +195,12 @@ void setup() {
 
 void loop() {
   
-  if (CastleLinkLive.getData(0, &escHR0))// && CastleLinkLive.getData(1, &escHR1))
+  if (CastleLinkLive.getData(1, &escHR0))// && CastleLinkLive.getData(1, &escHR1))
   {
   float data_float[5]={escHR0.voltage, escHR0.current, escHR0.RPM, escHR0.BECvoltage, escHR0.BECcurrent};//, escHR1.voltage, escHR1.current, escHR1.RPM, escHR1.BECvoltage, escHR1.BECcurrent};
   i2cdata = (byte *)data_float; 
                        // as expected by master
-                       Serial.println("good");
+                       Serial.println(escHR0.RPM);
   }
   else 
 {

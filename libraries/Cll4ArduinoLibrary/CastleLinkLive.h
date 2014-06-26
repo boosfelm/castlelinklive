@@ -622,7 +622,7 @@ class CastleLinkLiveLib {
    	   @see CASTLE_ESC_DATA
    	   @see CastleLinkLiveLib::getData(uint8_t index, CASTLE_ESC_DATA *data)
    */
-   uint16_t getShaftRPM(uint16_t eRPM, uint8_t motorPoles);
+   float getShaftRPM(float eRPM, uint8_t motorPoles);
 #endif
 
   private:

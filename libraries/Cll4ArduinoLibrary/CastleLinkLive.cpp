@@ -748,7 +748,7 @@ uint8_t CastleLinkLiveLib::getData( uint8_t index, CASTLE_ESC_DATA *o) {
         o->outputPower = CLL_CALC_OUTPUT_POWER(value);
         break;
       case FRAME_RPM:
-        o->RPM = CLL_CALC_RPM(value); 
+        o->RPM = CLL_CALC_RPM(value);
         break;
       case FRAME_BEC_VOLTAGE:
         o->BECvoltage = CLL_CALC_BEC_VOLTAGE(value);
@@ -776,8 +776,8 @@ uint8_t CastleLinkLiveLib::getData( uint8_t index, CASTLE_RAW_DATA *o) {
   return _copyDataStructure(index, o);
 }
 
-uint16_t CastleLinkLiveLib::getShaftRPM(uint16_t eRPM, uint8_t motorPoles) {
-  return (eRPM * 2 / ((float) motorPoles));
+float CastleLinkLiveLib::getShaftRPM(float eRPM, uint8_t motorPoles) {
+  return (eRPM * 2.0f / ((float) motorPoles));
 }
 
 

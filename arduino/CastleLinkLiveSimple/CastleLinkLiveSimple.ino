@@ -132,7 +132,7 @@ void print_data(CASTLE_RAW_DATA *d) {
 }
   CASTLE_ESC_DATA escHR0;
   CASTLE_ESC_DATA escHR1;
-  byte *i2cdata = new byte[20];
+  byte *i2cdata = new byte[48];
 
 
 /*
@@ -194,17 +194,18 @@ void setup() {
 }
 
 void loop() {
+  delay(setThrottleDelay);
   
-  if (CastleLinkLive.getData(1, &escHR0))// && CastleLinkLive.getData(1, &escHR1))
+  if (CastleLinkLive.getData(0, &escHR0) && CastleLinkLive.getData(1, &escHR1))
   {
-  float data_float[5]={escHR0.voltage, escHR0.current, escHR0.RPM, escHR0.BECvoltage, escHR0.BECcurrent};//, escHR1.voltage, escHR1.current, escHR1.RPM, escHR1.BECvoltage, escHR1.BECcurrent};
+  float data_float[12]={escHR0.voltage, escHR0.current, escHR0.RPM*2.0f/24.0f, escHR0.BECvoltage, escHR0.BECcurrent, escHR0.temperature, escHR1.voltage, escHR1.current, escHR1.RPM*2.0f/24.0f, escHR1.BECvoltage, escHR1.BECcurrent, escHR1.temperature};
   i2cdata = (byte *)data_float; 
                        // as expected by master
                        Serial.println(escHR0.RPM);
   }
   else 
 {
-float data_float[5]={0,0,0,0,0};//,0,0,0,0,0};
+float data_float[12]={0,0,0,0,0,0,0,0,0,0,0,0};
 i2cdata = (byte *)data_float; 
                        // as expected by master
                        Serial.println("bad");
@@ -214,7 +215,7 @@ i2cdata = (byte *)data_float;
 void requestEvent()
 {
 
-   Wire.write(i2cdata,20); // respond with message of 6 bytes
+   Wire.write(i2cdata,48); // respond with message of 6 bytes
   
 }
   

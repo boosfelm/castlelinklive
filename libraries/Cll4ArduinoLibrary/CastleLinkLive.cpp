@@ -856,14 +856,14 @@ inline void throttleInterruptHandler(uint8_t pinStatus, uint8_t port_int) {
   //Serial.println("in");
   	if(port_int == port)
   	{
-     ESC_WRITE_PORT &= escPinsLowMask1; //write LOW to ESCs pins
+     //ESC_WRITE_PORT &= escPinsLowMask1; //write LOW to ESCs pins
      TIMER_CLEAR();
      _time_throttle1=0;
      //Serial.println("port1 in");
   	}
  else 
  {
- 	ESC_WRITE_PORT &= escPinsLowMask2;
+ 	//ESC_WRITE_PORT &= escPinsLowMask2;
  	_time_throttle2 = 0;
  }
 
@@ -874,7 +874,7 @@ inline void throttleInterruptHandler(uint8_t pinStatus, uint8_t port_int) {
                          // throttle pulse end
   	if(port_int == port)
   	{
-     ESC_WRITE_PORT |= escPinsHighMask1; //write high to ESCs pins
+     //ESC_WRITE_PORT |= escPinsHighMask1; //write high to ESCs pins
      _time_throttle1 = TIMER_CNT;
      TIMER_CLEAR();
      ESC_DDR &= escPinsLowMask1; //set esc pins as inputs
@@ -887,7 +887,7 @@ inline void throttleInterruptHandler(uint8_t pinStatus, uint8_t port_int) {
  	else
  	{
  	_time_throttle2 = TIMER_CNT;
- 	ESC_WRITE_PORT |= escPinsHighMask2;
+ 	//ESC_WRITE_PORT |= escPinsHighMask2;
  	ESC_DDR &= escPinsLowMask2; //set esc pins as inputs
  	EIFR |= extIntClearMask2; // clear INTn flags before enabling interrupts
      EIMSK |= extIntEnableMask2; //enable interrupts on INTn

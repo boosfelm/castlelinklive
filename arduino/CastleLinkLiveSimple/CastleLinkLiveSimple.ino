@@ -211,18 +211,7 @@ i2cdata = (byte *)data_float;
                        Serial.println("bad");
 }
 
-if(CastleLinkLive.getData(0, &escHR0))
-{
-Serial.println("DATA1");
-print_data(&escHR0);
-}
 
-if(CastleLinkLive.getData(1, &escHR1))
-{
-Serial.println("DATA2");
-print_data(&escHR1);
-}
-  
 }
 void requestEvent()
 {

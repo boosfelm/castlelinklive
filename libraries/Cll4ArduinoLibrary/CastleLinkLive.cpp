@@ -466,8 +466,8 @@ uint8_t CastleLinkLiveLib::begin(uint8_t nESC, int throttlePinNumber, uint16_t t
   extIntEnableMask = getEscIntEnableMask(nESC);  //enable interrupts
   extIntDisableMask = ~ extIntEnableMask;
 
-  ESC_DDR |= escPinsHighMask; //set ESCs pins as outputs
-  ESC_WRITE_PORT |= escPinsHighMask; //set ESCs pins high
+  //ESC_DDR |= escPinsHighMask; //set ESCs pins as outputs
+  //ESC_WRITE_PORT |= escPinsHighMask; //set ESCs pins high
 
   // set output compare match A of timer1 with number of ticks
   // corresponding to CASTLE_RESET_TIMEOUT
@@ -550,8 +550,8 @@ uint8_t CastleLinkLiveLib::begin(uint8_t nESC, int throttlePinNumber1, int throt
   extIntDisableMask1 = ~ extIntEnableMask1;
   extIntDisableMask2 = ~ extIntEnableMask2;
 
-  ESC_DDR |= escPinsHighMask; //set ESCs pins as outputs
-  ESC_WRITE_PORT |= escPinsHighMask; //set ESCs pins high
+  //ESC_DDR |= escPinsHighMask; //set ESCs pins as outputs
+  //ESC_WRITE_PORT |= escPinsHighMask; //set ESCs pins high
 
   // set output compare match A of timer1 with number of ticks
   // corresponding to CASTLE_RESET_TIMEOUT
@@ -954,9 +954,9 @@ ISR(TIMER_COMPA_ISR) {
   EIMSK &= extIntDisableMask; //disable INTn interrupt
   // timeout elapsed, so restore output mode for ESC pins in any case
 #ifndef DISABLE_ALL_PULLUPS  
-  ESC_WRITE_PORT |= escPinsHighMask; //write high to esc pins before switching to output if pullups are not globally disabled
+  //ESC_WRITE_PORT |= escPinsHighMask; //write high to esc pins before switching to output if pullups are not globally disabled
 #endif
-  ESC_DDR |= escPinsHighMask;  //set esc pins to output
+  //ESC_DDR |= escPinsHighMask;  //set esc pins to output
 
   for (int i = 0; i < gInstalledEsc; i++) {
 	CASTLE_PRIV_DATA *d = &(data[i]);
@@ -1030,8 +1030,8 @@ ISR(TIMER_COMPB_ISR) {
   
   if (throttleFailCnt >= MAX_NO_THROTTLE_GEN) {
     TIMER_DISABLE_COMPB(); //disable interrupt generation
-    ESC_WRITE_PORT |= escPinsHighMask; //esc pins high!
-    ESC_DDR |= escPinsHighMask; //esc pins as output!
+    //ESC_WRITE_PORT |= escPinsHighMask; //esc pins high!
+    //ESC_DDR |= escPinsHighMask; //esc pins as output!
     throttleNotPresent();
   }
 }
@@ -1042,7 +1042,7 @@ ISR(TIMER_OVF_ISR) {
 
   if (throttleFailCnt >= MAX_OVERFLOW) {
     ESC_WRITE_PORT |= escPinsHighMask;
-    ESC_DDR |= escPinsHighMask;
+    //ESC_DDR |= escPinsHighMask;
     throttleNotPresent();
     throttleFailCnt = 0; //reset throttle failure counter
   }

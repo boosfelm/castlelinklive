@@ -97,7 +97,7 @@
 #endif
 
 
-#include "CastleLinkLive_config.h"
+//#include "CastleLinkLive_config.h"
 
 
 /** \cond */
@@ -376,7 +376,7 @@
 typedef struct castle_raw_data_struct {
 
    /** \brief Array containing time (timer ticks) measurements for all ESC data frames */
-   uint16_t ticks[DATA_FRAME_CNT];
+   unsigned int ticks[DATA_FRAME_CNT];
 } CASTLE_RAW_DATA;
 
 /** \brief Structure to hold ESC telemetry data

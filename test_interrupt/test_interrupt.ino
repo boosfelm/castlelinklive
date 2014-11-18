@@ -20,6 +20,11 @@ CASTLE_PRIV_DATA data[2];
 
 volatile bool flag_ready[2];
 
+volatile int my_ctr=0;
+volatile int ctr_data[3];
+int loop_ctr = 0;
+
+
 CASTLE_ESC_DATA escdata[2];
 
 static int test_led_toggle = 1;
@@ -49,19 +54,22 @@ void setup()
     pinMode(2, INPUT);
     Serial.begin(2400);
     cli();
-    TIMSK2 |= (1<<TOIE2); //Enable overflow
-    OCR1A = 256;
+    //TIMSK2 |= (1<<TOIE2); //Enable overflow
+    
+    //OCR1A = 256;
+    ICR1 = 256;
     TIFR1 |= _BV(OCF1A);      // clear any pending interrupts; 
     TIMSK1 |=  _BV(OCIE1A) ;  // enable the output compare interrupt 
     //TIMSK1 |= (1<<OCIE1A);//(1<<OCIE1A);//Enable compare interrupt
-    EICRA |= (1 << ISC11) ;//| (1 << ISC01); //Falling Edge
-    EIMSK |= (1 << INT1); //| (1 << INT0); //Enable interrupt via pin
-    TCCR2A = 0;
-    TCCR2B = 0;
+    EICRA |=  (1 << ISC01);//(1 << ISC11) | (1 << ISC01); //Falling Edge for both interrupt INT0 and interrupt INT1
+    EIMSK |= (1 << INT0);//(1 << INT1) | (1 << INT0); //Enable interrupt via pin for INT0 and INT1
+    //TCCR2A = 0;
+    //TCCR2B = 0;
     TCCR1A = 0;
     TCCR1B = 0;
-    TCCR2B |= 0b010;    // 8 prescaler 0b010;
-    TCCR1B |= 0b001;     // set prescaler of 1 //higher prescale slower clock, more time for overflow, more difficult to characterize pwm or tick etc based on overflow as you have done (magic numbers 3 and 28 for 8bit timer with prescale 8). Needs be adjusted for 16bit timer with no prescale.
+    //TCCR2B |= 0b010;    // 8 prescaler 0b010;
+    TCCR1A |= 0b00;
+    TCCR1B |= 0b11010;     // set prescaler of 8. Time for overflow = 65ms. Should never happen when connected to esc. //higher prescale slower clock, more time for overflow, more difficult to characterize pwm or tick etc based on overflow as you have done (magic numbers 3 and 28 for 8bit timer with prescale 8). Needs be adjusted for 16bit timer with no prescale.
     Wire.begin(2);
     Wire.onRequest(requestEvent); // register event
     Serial.println("Start");
@@ -83,9 +91,20 @@ void loop()
     }
     
 //    getData(0, &escdata[1]);
-    Serial.println("H");
-    
     delay(20);
+/*
+    Serial.println("H");
+    ctr_data[loop_ctr]= my_ctr;
+    loop_ctr++;
+    if(loop_ctr == 3){
+        loop_ctr = 0;
+        Serial.println(ctr_data[0]);
+        Serial.println(ctr_data[1]);
+        Serial.println(ctr_data[2]);
+        
+    }
+    */
+        
 }
 
 void requestEvent()
@@ -93,7 +112,7 @@ void requestEvent()
     Wire.write(i2cdata, 48); // respond with message of 6 bytes
 }
 
-
+/*
 ISR(INT1_vect)
 {
     unsigned int ovf = counter_overflow[1];
@@ -121,44 +140,14 @@ ISR(INT1_vect)
     }
 }
 
-ISR(INT0_vect)
-{
-    unsigned int ovf = counter_overflow[0];
-    unsigned int time = TCNT1;
-    TCNT1 = 0;    //reset time
-    counter_overflow[0] = 0;
-    time = time + (ovf << 8);
-
-    if (is_waiting_for_tick[0]) {
-        tick(time,0);
-        //        TIMSK2 &= DISABLE_OVF;
-        TCCR1B = 0;
-        is_waiting_for_tick[0] = false;
-        return;
-    }
-
-    //    TIMSK2 |= ENABLE_OVF;
-    TCCR1B = 0b10; 
-
-    if (is_in_pwm[0]) {
-        is_waiting_for_tick[0] = true;
-        is_in_pwm[0] = false;
-        EICRA &= FALLING_EDGE0;
-        return;
-    }
-}
 
 ISR(TIMER2_OVF_vect)
 {
+  //  my_ctr = my_ctr + 1;
+  //  digitalWrite(13,HIGH);
+
     counter_overflow[1]++;
-/*
-    if((test_led_toggle % 16) == 0){
-        digitalWrite(13, !bitRead(PORTB,5));//toggle
-        test_led_toggle = 1;
-    }
-    test_led_toggle = test_led_toggle + 1;
-*/    
-    
+    //digitalWrite(13,HIGH);    
     
     if (counter_overflow[1] == 3 && digitalRead(3) == LOW) { //time taken = (2power8 = 256) x (prescale=8) / (clockfreq = 8Mhz) = 256 microsec per overflow. 3 overflow = 3*256 microsec = 0.7 ms low bottom we are in pwm 
         //            TIMSK2 &= DISABLE_OVF;
@@ -181,19 +170,49 @@ ISR(TIMER2_OVF_vect)
         return;
     }
 }
-
-ISR(TIMER1_COMPA_vect) // Why at TIMER1_COMPA_vect instead of TIMER1_OVF_vect ?
-{
-    counter_overflow[0]++;
-    digitalWrite(13, HIGH);
-/*    
-    if(test_led_toggle % 2 == 0){
-      digitalWrite(13, HIGH);
-    } else {
-      digitalWrite(13, LOW);
-    }
-    test_led_toggle = test_led_toggle + 1;
 */
+
+
+ISR(INT0_vect) 
+{
+  unsigned int ovf = counter_overflow[0];
+    unsigned int time = TCNT1;
+    TCNT1 = 0;    //reset time
+    counter_overflow[0] = 0;
+    time = time + (ovf << 8);
+
+    if (is_waiting_for_tick[0]) {
+        //digitalWrite(13, HIGH);
+        tick(time,0);
+        //        TIMSK2 &= DISABLE_OVF;
+        TCCR1B = 0;
+        is_waiting_for_tick[0] = false;
+        return;
+    }
+
+    //    TIMSK2 |= ENABLE_OVF;
+    TCCR1B = 0b11010; 
+
+    if (is_in_pwm[0]) {
+        is_waiting_for_tick[0] = true;
+        is_in_pwm[0] = false;
+        EICRA &= FALLING_EDGE0;
+        return;
+    }
+}
+
+
+ISR(TIMER1_COMPA_vect) // Should not happen when connected to ESC
+{
+  // my_ctr = my_ctr + 1;
+  // digitalWrite(13,HIGH);
+    //unsigned int time = TCNT1;
+    //TCNT1 = 0;
+    //Serial.println(time);
+    counter_overflow[0]++;
+    //digitalWrite(13, HIGH);
+    //TCNT1 = 0;    //reset time. Time resets after over flow.
+
 
     if (counter_overflow[0] == 3 && digitalRead(2) == LOW) { //counter overflow 2 or 3 ??
         //            TIMSK2 &= DISABLE_OVF;
@@ -216,15 +235,6 @@ ISR(TIMER1_COMPA_vect) // Why at TIMER1_COMPA_vect instead of TIMER1_OVF_vect ?
         return;
     }
 }
-
-
-
-
-
-
-
-
-
 
 
 // castle data timeout
@@ -254,18 +264,20 @@ inline void tick(unsigned int ticks, int index)
     }
 }
 
+/*
+
 uint8_t getData(uint8_t index, CASTLE_RAW_DATA *o)
 {
     if (flag_ready[index]) { //wait for ISRs code to finish filling data structure. Stops the main loop, nothing else is procesed if not ready. Why not revisit when ready ?
       EIMSK = 0;
       memcpy(o, data[index].ticks, sizeof(unsigned int) * DATA_FRAME_CNT);
-      EIMSK  |= (1 << INT1) ;//| (1 << INT0);
+      EIMSK  |= (1 << INT1) ;//| (1 << INT1);
       return true;
     }else {
       return false;
     }
 
-}
+}*/
 
 
 uint8_t getData(uint8_t index, CASTLE_ESC_DATA *o)

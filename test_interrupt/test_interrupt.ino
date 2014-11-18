@@ -50,24 +50,27 @@ void setup()
     pinMode(13, OUTPUT);//test led blink
     digitalWrite(13, LOW);
   
-    pinMode(3, INPUT);
-    pinMode(2, INPUT);
+    pinMode(3, INPUT_PULLUP);
+    pinMode(2, INPUT_PULLUP);
     Serial.begin(2400);
     cli();
-    //TIMSK2 |= (1<<TOIE2); //Enable overflow
+    TIMSK2 |= (1<<TOIE2); //Enable overflow
     
     //OCR1A = 256;
     ICR1 = 256;
     TIFR1 |= _BV(OCF1A);      // clear any pending interrupts; 
     TIMSK1 |=  _BV(OCIE1A) ;  // enable the output compare interrupt 
-    //TIMSK1 |= (1<<OCIE1A);//(1<<OCIE1A);//Enable compare interrupt
-    EICRA |=  (1 << ISC01);//(1 << ISC11) | (1 << ISC01); //Falling Edge for both interrupt INT0 and interrupt INT1
-    EIMSK |= (1 << INT0);//(1 << INT1) | (1 << INT0); //Enable interrupt via pin for INT0 and INT1
-    //TCCR2A = 0;
-    //TCCR2B = 0;
+    EICRA |=  (1 << ISC11) | (1 << ISC01); //Falling Edge for both interrupt INT0 and interrupt INT1
+    EIMSK |= (1 << INT1); //| (1 << INT0); //Enable interrupt via pin for INT0 and INT1
+
+    //EICRA |=  (1 << ISC11);
+    EIMSK |= (1 << INT0);
+
+    TCCR2A = 0;
+    TCCR2B = 0;
     TCCR1A = 0;
     TCCR1B = 0;
-    //TCCR2B |= 0b010;    // 8 prescaler 0b010;
+    TCCR2B |= 0b010;    // 8 prescaler 0b010;
     TCCR1A |= 0b00;
     TCCR1B |= 0b11010;     // set prescaler of 8. Time for overflow = 65ms. Should never happen when connected to esc. //higher prescale slower clock, more time for overflow, more difficult to characterize pwm or tick etc based on overflow as you have done (magic numbers 3 and 28 for 8bit timer with prescale 8). Needs be adjusted for 16bit timer with no prescale.
     Wire.begin(2);
@@ -84,14 +87,15 @@ void loop()
       float data_float[12] = {escdata[0].voltage, escdata[0].current, escdata[0].RPM * 2.0f / 24.0f, escdata[0].BECvoltage, escdata[0].BECcurrent, escdata[0].temperature, escdata[0].voltage, escdata[0].current, escdata[0].RPM * 2.0f / 24.0f, escdata[0].BECvoltage, escdata[0].BECcurrent, escdata[0].temperature};
       i2cdata = (byte *)data_float;  
     }
+    
     if(getData(1, &escdata[1])){
       Serial.println(escdata[1].RPM);
       float data_float[12] = {escdata[1].voltage, escdata[1].current, escdata[1].RPM * 2.0f / 24.0f, escdata[1].BECvoltage, escdata[1].BECcurrent, escdata[1].temperature, escdata[1].voltage, escdata[1].current, escdata[1].RPM * 2.0f / 24.0f, escdata[1].BECvoltage, escdata[1].BECcurrent, escdata[1].temperature};
       i2cdata = (byte *)data_float;  
     }
-    
-//    getData(0, &escdata[1]);
     delay(20);
+//    getData(0, &escdata[1]);
+    
 /*
     Serial.println("H");
     ctr_data[loop_ctr]= my_ctr;
@@ -112,7 +116,7 @@ void requestEvent()
     Wire.write(i2cdata, 48); // respond with message of 6 bytes
 }
 
-/*
+
 ISR(INT1_vect)
 {
     unsigned int ovf = counter_overflow[1];
@@ -144,7 +148,7 @@ ISR(INT1_vect)
 ISR(TIMER2_OVF_vect)
 {
   //  my_ctr = my_ctr + 1;
-  //  digitalWrite(13,HIGH);
+    digitalWrite(13,HIGH);
 
     counter_overflow[1]++;
     //digitalWrite(13,HIGH);    
@@ -170,7 +174,6 @@ ISR(TIMER2_OVF_vect)
         return;
     }
 }
-*/
 
 
 ISR(INT0_vect) 
@@ -205,7 +208,7 @@ ISR(INT0_vect)
 ISR(TIMER1_COMPA_vect) // Should not happen when connected to ESC
 {
   // my_ctr = my_ctr + 1;
-  // digitalWrite(13,HIGH);
+   digitalWrite(13,LOW);
     //unsigned int time = TCNT1;
     //TCNT1 = 0;
     //Serial.println(time);

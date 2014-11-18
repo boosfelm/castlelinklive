@@ -22,6 +22,7 @@ volatile bool flag_ready[2];
 
 CASTLE_ESC_DATA escdata[2];
 
+static int test_led_toggle = 1;
 
 byte *i2cdata = new byte[48];
 
@@ -41,13 +42,18 @@ void setup()
         flag_ready[i] = false;
     }
 
+    pinMode(13, OUTPUT);//test led blink
+    digitalWrite(13, LOW);
+  
     pinMode(3, INPUT);
     pinMode(2, INPUT);
     Serial.begin(2400);
     cli();
     TIMSK2 |= (1<<TOIE2); //Enable overflow
     OCR1A = 256;
-    TIMSK1 |= (1<<OCIE1A);//Enable compare interrupt
+    TIFR1 |= _BV(OCF1A);      // clear any pending interrupts; 
+    TIMSK1 |=  _BV(OCIE1A) ;  // enable the output compare interrupt 
+    //TIMSK1 |= (1<<OCIE1A);//(1<<OCIE1A);//Enable compare interrupt
     EICRA |= (1 << ISC11) ;//| (1 << ISC01); //Falling Edge
     EIMSK |= (1 << INT1); //| (1 << INT0); //Enable interrupt via pin
     TCCR2A = 0;
@@ -55,7 +61,7 @@ void setup()
     TCCR1A = 0;
     TCCR1B = 0;
     TCCR2B |= 0b010;    // 8 prescaler 0b010;
-//    TCCR1B |= 0b010;    // 8 prescaler 0b010;
+    TCCR1B |= 0b001;     // set prescaler of 1 //higher prescale slower clock, more time for overflow, more difficult to characterize pwm or tick etc based on overflow as you have done (magic numbers 3 and 28 for 8bit timer with prescale 8). Needs be adjusted for 16bit timer with no prescale.
     Wire.begin(2);
     Wire.onRequest(requestEvent); // register event
     Serial.println("Start");
@@ -65,12 +71,20 @@ void setup()
 void loop()
 {
     //  delay(400);
-    getData(1, &escdata[1]);
+    if(getData(0, &escdata[0])){
+      Serial.println(escdata[0].RPM);
+      float data_float[12] = {escdata[0].voltage, escdata[0].current, escdata[0].RPM * 2.0f / 24.0f, escdata[0].BECvoltage, escdata[0].BECcurrent, escdata[0].temperature, escdata[0].voltage, escdata[0].current, escdata[0].RPM * 2.0f / 24.0f, escdata[0].BECvoltage, escdata[0].BECcurrent, escdata[0].temperature};
+      i2cdata = (byte *)data_float;  
+    }
+    if(getData(1, &escdata[1])){
+      Serial.println(escdata[1].RPM);
+      float data_float[12] = {escdata[1].voltage, escdata[1].current, escdata[1].RPM * 2.0f / 24.0f, escdata[1].BECvoltage, escdata[1].BECcurrent, escdata[1].temperature, escdata[1].voltage, escdata[1].current, escdata[1].RPM * 2.0f / 24.0f, escdata[1].BECvoltage, escdata[1].BECcurrent, escdata[1].temperature};
+      i2cdata = (byte *)data_float;  
+    }
+    
 //    getData(0, &escdata[1]);
-    Serial.println(escdata[1].voltage);
-//    Serial.println("HELLO");
-    float data_float[12] = {escdata[1].voltage, escdata[1].current, escdata[1].RPM * 2.0f / 24.0f, escdata[1].BECvoltage, escdata[1].BECcurrent, escdata[1].temperature, escdata[1].voltage, escdata[1].current, escdata[1].RPM * 2.0f / 24.0f, escdata[1].BECvoltage, escdata[1].BECcurrent, escdata[1].temperature};
-    i2cdata = (byte *)data_float;
+    Serial.println("H");
+    
     delay(20);
 }
 
@@ -91,18 +105,18 @@ ISR(INT1_vect)
     if (is_waiting_for_tick[1]) {
         tick(time,1);
         //        TIMSK2 &= DISABLE_OVF;
-        TCCR2B = 0;
+        TCCR2B = 0; // prescale remover or timer clock stopped ? still looking for falling edge.
         is_waiting_for_tick[1] = false;
         return;
     }
 
     //    TIMSK2 |= ENABLE_OVF;
-    TCCR2B = 0b10;
+    TCCR2B = 0b10;//set prescale 8 (timer clock start or already running ? )
 
     if (is_in_pwm[1]) {
         is_waiting_for_tick[1] = true;
         is_in_pwm[1] = false;
-        EICRA &= FALLING_EDGE1;
+        EICRA &= FALLING_EDGE1; // look for falling edge
         return;
     }
 }
@@ -124,7 +138,7 @@ ISR(INT0_vect)
     }
 
     //    TIMSK2 |= ENABLE_OVF;
-    TCCR1B = 0b10;
+    TCCR1B = 0b10; 
 
     if (is_in_pwm[0]) {
         is_waiting_for_tick[0] = true;
@@ -137,20 +151,28 @@ ISR(INT0_vect)
 ISR(TIMER2_OVF_vect)
 {
     counter_overflow[1]++;
-
-    if (counter_overflow[1] == 3 && digitalRead(3) == LOW) {
+/*
+    if((test_led_toggle % 16) == 0){
+        digitalWrite(13, !bitRead(PORTB,5));//toggle
+        test_led_toggle = 1;
+    }
+    test_led_toggle = test_led_toggle + 1;
+*/    
+    
+    
+    if (counter_overflow[1] == 3 && digitalRead(3) == LOW) { //time taken = (2power8 = 256) x (prescale=8) / (clockfreq = 8Mhz) = 256 microsec per overflow. 3 overflow = 3*256 microsec = 0.7 ms low bottom we are in pwm 
         //            TIMSK2 &= DISABLE_OVF;
-        TCCR2B = 0;
+        TCCR2B = 0; //why ? stopping clock ?
         EICRA |= RISING_EDGE1;
         is_in_pwm[1] = true;
         counter_overflow[1] = 0;
         return;
     }
 
-    if (counter_overflow[1] >= 28) {
+    if (counter_overflow[1] >= 28) { // no falling edge for over 7ms after rising edge
         if (digitalRead(3) == HIGH && is_waiting_for_tick[1]) {
             //                   TIMSK2 &= DISABLE_OVF;
-            TCCR2B = 0;
+            TCCR2B = 0; //stop timer clock
             reset(1);
             is_waiting_for_tick[1] = false;
         }
@@ -160,11 +182,20 @@ ISR(TIMER2_OVF_vect)
     }
 }
 
-ISR(TIMER1_COMPA_vect)
+ISR(TIMER1_COMPA_vect) // Why at TIMER1_COMPA_vect instead of TIMER1_OVF_vect ?
 {
     counter_overflow[0]++;
+    digitalWrite(13, HIGH);
+/*    
+    if(test_led_toggle % 2 == 0){
+      digitalWrite(13, HIGH);
+    } else {
+      digitalWrite(13, LOW);
+    }
+    test_led_toggle = test_led_toggle + 1;
+*/
 
-    if (counter_overflow[0] == 2 && digitalRead(2) == LOW) {
+    if (counter_overflow[0] == 3 && digitalRead(2) == LOW) { //counter overflow 2 or 3 ??
         //            TIMSK2 &= DISABLE_OVF;
         TCCR1B = 0;
         EICRA |= RISING_EDGE0;
@@ -225,13 +256,15 @@ inline void tick(unsigned int ticks, int index)
 
 uint8_t getData(uint8_t index, CASTLE_RAW_DATA *o)
 {
-    while (!flag_ready[index]) { //wait for ISRs code to finish filling data structure
+    if (flag_ready[index]) { //wait for ISRs code to finish filling data structure. Stops the main loop, nothing else is procesed if not ready. Why not revisit when ready ?
+      EIMSK = 0;
+      memcpy(o, data[index].ticks, sizeof(unsigned int) * DATA_FRAME_CNT);
+      EIMSK  |= (1 << INT1) ;//| (1 << INT0);
+      return true;
+    }else {
+      return false;
     }
 
-    EIMSK = 0;
-    memcpy(o, data[index].ticks, sizeof(unsigned int) * DATA_FRAME_CNT);
-    EIMSK  |= (1 << INT1) ;//| (1 << INT0);
-    return true;
 }
 
 
@@ -240,67 +273,73 @@ uint8_t getData(uint8_t index, CASTLE_ESC_DATA *o)
     uint8_t whichTemp;
     CASTLE_RAW_DATA c;
 
-    while (!flag_ready[index]) { //wait for ISRs code to finish filling data structure
-    }
-
-    memcpy(&c, &(data[index]), sizeof(unsigned int) * DATA_FRAME_CNT);
-    whichTemp = CLL_GET_WHICH_TEMP(c);
-
-    for (int f = 1; f < DATA_FRAME_CNT; f++) {
-        float value = CLL_BASE_VALUE(
-                          c.ticks[f],
-                          c.ticks[FRAME_REFERENCE],
-                          CLL_GET_OFFSET_TICKS(c)
-                      );
-
-        switch (f) {
-        case FRAME_VOLTAGE:
-            o->voltage = CLL_CALC_VOLTAGE(value);
-            break;
-
-        case FRAME_RIPPLE_VOLTAGE:
-            o->rippleVoltage = CLL_CALC_RIPPLE_VOLTAGE(value);
-            break;
-
-        case FRAME_CURRENT:
-            o->current = CLL_CALC_CURRENT(value);
-            break;
-
-        case FRAME_THROTTLE:
-            o->throttle = CLL_CALC_THROTTLE(value);
-            break;
-
-        case FRAME_OUTPUT_POWER:
-            o->outputPower = CLL_CALC_OUTPUT_POWER(value);
-            break;
-
-        case FRAME_RPM:
-            o->RPM = CLL_CALC_RPM(value);
-            break;
-
-        case FRAME_BEC_VOLTAGE:
-            o->BECvoltage = CLL_CALC_BEC_VOLTAGE(value);
-            break;
-
-        case FRAME_BEC_CURRENT:
-            o->BECcurrent = CLL_CALC_BEC_CURRENT(value);
-            break;
-
-        case FRAME_TEMP1:
-            if (whichTemp == FRAME_TEMP1) { o->temperature = CLL_CALC_TEMP1(value); }
-
-            break;
-
-        case FRAME_TEMP2:
-            if (whichTemp == FRAME_TEMP2) {
-                o->temperature = CLL_CALC_TEMP2(value);
+    if (flag_ready[index]) { //only do if ISRs code finishes filling data structure
+        memcpy(&c, &(data[index]), sizeof(unsigned int) * DATA_FRAME_CNT);
+        whichTemp = CLL_GET_WHICH_TEMP(c);
+    
+        for (int f = 1; f < DATA_FRAME_CNT; f++) {
+            float value = CLL_BASE_VALUE(
+                              c.ticks[f],
+                              c.ticks[FRAME_REFERENCE],
+                              CLL_GET_OFFSET_TICKS(c)
+                          );
+    
+            switch (f) {
+            case FRAME_VOLTAGE:
+                o->voltage = CLL_CALC_VOLTAGE(value);
+                break;
+    
+            case FRAME_RIPPLE_VOLTAGE:
+                o->rippleVoltage = CLL_CALC_RIPPLE_VOLTAGE(value);
+                break;
+    
+            case FRAME_CURRENT:
+                o->current = CLL_CALC_CURRENT(value);
+                break;
+    
+            case FRAME_THROTTLE:
+                o->throttle = CLL_CALC_THROTTLE(value);
+                break;
+    
+            case FRAME_OUTPUT_POWER:
+                o->outputPower = CLL_CALC_OUTPUT_POWER(value);
+                break;
+    
+            case FRAME_RPM:
+                o->RPM = CLL_CALC_RPM(value);
+                break;
+    
+            case FRAME_BEC_VOLTAGE:
+                o->BECvoltage = CLL_CALC_BEC_VOLTAGE(value);
+                break;
+    
+            case FRAME_BEC_CURRENT:
+                o->BECcurrent = CLL_CALC_BEC_CURRENT(value);
+                break;
+    
+            case FRAME_TEMP1:
+                if (whichTemp == FRAME_TEMP1) { o->temperature = CLL_CALC_TEMP1(value); }
+    
+                break;
+    
+            case FRAME_TEMP2:
+                if (whichTemp == FRAME_TEMP2) {
+                    o->temperature = CLL_CALC_TEMP2(value);
+                }
+    
+                break;
             }
-
-            break;
         }
-    }
+        
+        // Reset flag immediately. Only true again when next complete batch of ticks are recorded. 
+        // Why wait for reset() to be called from timer-overflow ? Without this, random ticks are 
+        // recorded(with no pwm connected!) and after the required nuumber of them, flag is set. 
+        // Some check is required that says the recorded batch of ticks should be within so much time.
+        flag_ready[index] = false; 
+        return true;
 
-    return true;
+    } else return false;
+
 }
 
 

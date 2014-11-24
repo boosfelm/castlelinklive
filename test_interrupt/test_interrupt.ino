@@ -6,11 +6,11 @@ volatile int counter_overflow[2];
 volatile bool is_in_pwm[2];
 volatile bool is_waiting_for_tick[2];
 
-uint8_t RISING_EDGE1 = (1 << ISC11) | (1 << ISC10); //0b00001100
-uint8_t FALLING_EDGE1 = (!RISING_EDGE1) | (1 << ISC11); // 0b11111011 only works if before was rising edge
+uint8_t RISING_EDGE1 = (1 << ISC11) | (1 << ISC10); //0b00001100 //dec 12
+uint8_t FALLING_EDGE1 = (!RISING_EDGE1) | (1 << ISC11); // 0b11111011 //dec 251
 
-uint8_t RISING_EDGE0 = (1 << ISC01) | (1 << ISC00); //0b00001100
-uint8_t FALLING_EDGE0 = (!RISING_EDGE0) | (1 << ISC01); // 0b11111011 only works if before was rising edge
+uint8_t RISING_EDGE0 = (1 << ISC01) | (1 << ISC00); //0b00000011 // dec 3
+uint8_t FALLING_EDGE0 = (!RISING_EDGE0) | (1 << ISC01); // 0b11111110 // dec 254
 
 typedef struct castle_priv_data_struct {
     unsigned int ticks[DATA_FRAME_CNT];
@@ -61,7 +61,7 @@ void setup()
     ICR1 = 256;
     TIFR1 |= _BV(OCF1A);      // clear any pending interrupts; 
     TIMSK1 |=  _BV(OCIE1A) ;  // enable the output compare interrupt 
-    EICRA |=  (1 << ISC11) | (1 << ISC01); //Falling Edge for both interrupt INT0 and interrupt INT1
+    EICRA |=  (1 << ISC11) | (1 << ISC01); //Falling Edge for both interrupt INT0 and interrupt INT1 //0b00001010 //dec 
     EIMSK |= (1 << INT1); //| (1 << INT0); //Enable interrupt via pin for INT0 and INT1
 
     //EICRA |=  (1 << ISC11);
@@ -83,7 +83,7 @@ void setup()
 void loop()
 {
     //  delay(400);
-    /*
+    
     if(getData(0, &escdata[0])){
       //Serial.println(escdata[0].RPM);
       float data_float[12] = {escdata[0].voltage, escdata[0].current, escdata[0].RPM * 2.0f / 24.0f, escdata[0].BECvoltage, escdata[0].BECcurrent, escdata[0].temperature, escdata[0].voltage, escdata[0].current, escdata[0].RPM * 2.0f / 24.0f, escdata[0].BECvoltage, escdata[0].BECcurrent, escdata[0].temperature};
@@ -91,14 +91,13 @@ void loop()
     }
     
     if(getData(1, &escdata[1])){
-      //Serial.println(escdata[1].RPM);
-      Serial.println(my_ctr);
+      Serial.println(escdata[1].RPM);
       float data_float[12] = {escdata[1].voltage, escdata[1].current, escdata[1].RPM * 2.0f / 24.0f, escdata[1].BECvoltage, escdata[1].BECcurrent, escdata[1].temperature, escdata[1].voltage, escdata[1].current, escdata[1].RPM * 2.0f / 24.0f, escdata[1].BECvoltage, escdata[1].BECcurrent, escdata[1].temperature};
       i2cdata = (byte *)data_float;  
-    }*/
+    }
     
-    Serial.println(my_ctr);
-    delay(1000);
+    //Serial.println(my_ctr);
+    delay(20);
 //    getData(0, &escdata[1]);
     
 /*
@@ -124,7 +123,6 @@ void requestEvent()
 
 ISR(INT1_vect)
 {
-    //digitalWrite(13,HIGH);
 
     unsigned int time = TCNT2;  
     unsigned int ovf = counter_overflow[1];
@@ -139,7 +137,7 @@ ISR(INT1_vect)
 
     if (is_waiting_for_tick[1]) {
         tick(time,1);
-        //digitalWrite(13,HIGH);
+        digitalWrite(13,LOW);
         //        TIMSK2 &= DISABLE_OVF;
         TCCR2B = 0; // prescale remover or timer clock stopped ? does it stop the clock or just remove prescale.
         is_waiting_for_tick[1] = false;
@@ -153,7 +151,7 @@ ISR(INT1_vect)
         
         is_waiting_for_tick[1] = true;
         is_in_pwm[1] = false;
-        EICRA &= FALLING_EDGE1; // look for falling edge
+        EICRA &= 0b11111011;//FALLING_EDGE1; // look for falling edge  
         return;
     }
     
@@ -174,7 +172,7 @@ ISR(TIMER2_OVF_vect)
     if (counter_overflow[1] == 3 && digitalRead(3) == LOW) { //time taken = (2power8 = 256) x (prescale=8) / (clockfreq = 8Mhz) = 256 microsec per overflow. 3 overflow = 3*256 microsec = 0.7 ms low bottom we are in pwm 
         //            TIMSK2 &= DISABLE_OVF;
         TCCR2B = 0; //why ? stopping clock ?
-        EICRA |= RISING_EDGE1;
+        EICRA |= 0b00001100;// RISING_EDGE1;//  
         is_in_pwm[1] = true;
         counter_overflow[1] = 0;
         return;
@@ -200,23 +198,18 @@ ISR(TIMER2_OVF_vect)
 ISR(INT0_vect) 
 {
   //digitalWrite(13,LOW);
-  /*
+  
   unsigned int time = TCNT1;
   unsigned int ovf = counter_overflow[0];
 
     TCNT1 = 0;    //reset time
     counter_overflow[0] = 0;
-    time = time + (ovf << 8);
-
-
-    tick(time,0);
-  
+    time = time + (ovf << 8); 
   
 
     if (is_waiting_for_tick[0]) {
-        //digitalWrite(13, HIGH);
+        digitalWrite(13, HIGH);
         tick(time,0);
-        digitalWrite(13,LOW);
         
         //        TIMSK2 &= DISABLE_OVF;
         TCCR1B = 0;
@@ -230,17 +223,17 @@ ISR(INT0_vect)
     if (is_in_pwm[0]) {
         is_waiting_for_tick[0] = true;
         is_in_pwm[0] = false;
-        EICRA &= FALLING_EDGE0;
+        EICRA &= 0b11111110 ;//FALLING_EDGE0;
         return;
     }
     
-    */
+    
 }
 
 
 ISR(TIMER1_COMPA_vect)
 {
-  /*  counter_overflow[0]++;
+    counter_overflow[0]++;
 
   
   
@@ -256,7 +249,7 @@ ISR(TIMER1_COMPA_vect)
     if (counter_overflow[0] == 3 && digitalRead(2) == LOW) { //counter overflow 2 or 3 ??
         //            TIMSK2 &= DISABLE_OVF;
         TCCR1B = 0;
-        EICRA |= RISING_EDGE0;
+        EICRA |= 0b00000011;//RISING_EDGE0;
         is_in_pwm[0] = true;
         counter_overflow[0] = 0;
         return;
@@ -274,7 +267,7 @@ ISR(TIMER1_COMPA_vect)
         return;
     }
     
-    */
+    
 }
 
 

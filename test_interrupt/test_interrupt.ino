@@ -129,9 +129,9 @@ ISR(INT1_vect)
     counter_overflow[1] = 0;
     time = time + (ovf << 8);
 
-  tick(time,1);//testing only should be 1
+  //tick(time,1);//testing only should be 1
 
-  /*
+  
 
     if (is_waiting_for_tick[1]) {
         tick(time,1);
@@ -152,7 +152,7 @@ ISR(INT1_vect)
         return;
     }
     
-    */
+    
 }
 
 
@@ -162,7 +162,7 @@ ISR(TIMER2_OVF_vect)
 
 
   //  my_ctr = my_ctr + 1;
-    /*
+    
 
     //digitalWrite(13,HIGH);    
     
@@ -187,7 +187,7 @@ ISR(TIMER2_OVF_vect)
         return;
     }
     
-    */
+    
 }
 
 
@@ -294,7 +294,7 @@ inline void tick(unsigned int ticks, int index)
 
     if (d->frameIdx == DATA_FRAME_CNT - 1) {
         flag_ready[index] = true;
-        d->frameIdx = FRAME_RESET;//TEST THIS
+        d->frameIdx = FRAME_RESET;
         //  Serial.println("READY");
     }
 }

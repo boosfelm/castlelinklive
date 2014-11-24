@@ -83,18 +83,22 @@ void setup()
 void loop()
 {
     //  delay(400);
+    /*
     if(getData(0, &escdata[0])){
-      Serial.println(escdata[0].RPM);
+      //Serial.println(escdata[0].RPM);
       float data_float[12] = {escdata[0].voltage, escdata[0].current, escdata[0].RPM * 2.0f / 24.0f, escdata[0].BECvoltage, escdata[0].BECcurrent, escdata[0].temperature, escdata[0].voltage, escdata[0].current, escdata[0].RPM * 2.0f / 24.0f, escdata[0].BECvoltage, escdata[0].BECcurrent, escdata[0].temperature};
       i2cdata = (byte *)data_float;  
     }
     
     if(getData(1, &escdata[1])){
-      Serial.println(escdata[1].RPM);
+      //Serial.println(escdata[1].RPM);
+      Serial.println(my_ctr);
       float data_float[12] = {escdata[1].voltage, escdata[1].current, escdata[1].RPM * 2.0f / 24.0f, escdata[1].BECvoltage, escdata[1].BECcurrent, escdata[1].temperature, escdata[1].voltage, escdata[1].current, escdata[1].RPM * 2.0f / 24.0f, escdata[1].BECvoltage, escdata[1].BECcurrent, escdata[1].temperature};
       i2cdata = (byte *)data_float;  
-    }
-    delay(20);
+    }*/
+    
+    Serial.println(my_ctr);
+    delay(1000);
 //    getData(0, &escdata[1]);
     
 /*
@@ -120,7 +124,7 @@ void requestEvent()
 
 ISR(INT1_vect)
 {
-  digitalWrite(13,HIGH);
+    //digitalWrite(13,HIGH);
 
     unsigned int time = TCNT2;  
     unsigned int ovf = counter_overflow[1];
@@ -131,21 +135,22 @@ ISR(INT1_vect)
 
   //tick(time,1);//testing only should be 1
 
-  
+  my_ctr = my_ctr + 1;
 
     if (is_waiting_for_tick[1]) {
         tick(time,1);
-        digitalWrite(13,HIGH);
+        //digitalWrite(13,HIGH);
         //        TIMSK2 &= DISABLE_OVF;
         TCCR2B = 0; // prescale remover or timer clock stopped ? does it stop the clock or just remove prescale.
         is_waiting_for_tick[1] = false;
         return;
     }
-
     //    TIMSK2 |= ENABLE_OVF;
+    
     TCCR2B = 0b10;//set prescale 8 (timer clock start or already running ? )
 
     if (is_in_pwm[1]) {
+        
         is_waiting_for_tick[1] = true;
         is_in_pwm[1] = false;
         EICRA &= FALLING_EDGE1; // look for falling edge
@@ -181,6 +186,7 @@ ISR(TIMER2_OVF_vect)
             TCCR2B = 0; //stop timer clock
             reset(1);
             is_waiting_for_tick[1] = false;
+            digitalWrite(13,HIGH); 
         }
 
         counter_overflow[1] = 0;
@@ -193,7 +199,8 @@ ISR(TIMER2_OVF_vect)
 
 ISR(INT0_vect) 
 {
-  digitalWrite(13,LOW);
+  //digitalWrite(13,LOW);
+  /*
   unsigned int time = TCNT1;
   unsigned int ovf = counter_overflow[0];
 
@@ -204,7 +211,7 @@ ISR(INT0_vect)
 
     tick(time,0);
   
-  /*
+  
 
     if (is_waiting_for_tick[0]) {
         //digitalWrite(13, HIGH);
@@ -233,10 +240,10 @@ ISR(INT0_vect)
 
 ISR(TIMER1_COMPA_vect)
 {
-    counter_overflow[0]++;
+  /*  counter_overflow[0]++;
 
   
-  /*
+  
   // my_ctr = my_ctr + 1;
     
     //unsigned int time = TCNT1;
@@ -294,7 +301,7 @@ inline void tick(unsigned int ticks, int index)
 
     if (d->frameIdx == DATA_FRAME_CNT - 1) {
         flag_ready[index] = true;
-        d->frameIdx = FRAME_RESET;
+        d->frameIdx = FRAME_RESET;//TEST THIS
         //  Serial.println("READY");
     }
 }

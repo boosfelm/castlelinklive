@@ -33,8 +33,8 @@ static int test_led_toggle = 1;
 byte *i2cdata = new byte[48];
 
 
-float testi[1]={130};
-byte *itesti = new byte[4];
+float testi[3]={130,140,150};
+byte *itesti = new byte[12];
 
 float iii[3] = {130,140,150};// = new byte[1];
 byte *idata = new byte[12];
@@ -128,7 +128,7 @@ void loop()
 
 void requestEvent()
 {
-    Wire.write(itesti, 4);                          // Respond with message of 6 bytes
+    Wire.write(itesti, 12);                          // Respond with message of 6 bytes
 }
  
 

@@ -85,7 +85,7 @@ void loop()
     //  delay(400);
     
     if(getData(0, &escdata[0])){
-      //Serial.println(escdata[0].RPM);
+      Serial.println(escdata[0].RPM);
       float data_float[12] = {escdata[0].voltage, escdata[0].current, escdata[0].RPM * 2.0f / 24.0f, escdata[0].BECvoltage, escdata[0].BECcurrent, escdata[0].temperature, escdata[0].voltage, escdata[0].current, escdata[0].RPM * 2.0f / 24.0f, escdata[0].BECvoltage, escdata[0].BECcurrent, escdata[0].temperature};
       i2cdata = (byte *)data_float;  
     }
@@ -184,7 +184,7 @@ ISR(TIMER2_OVF_vect)
             TCCR2B = 0; //stop timer clock
             reset(1);
             is_waiting_for_tick[1] = false;
-            digitalWrite(13,HIGH); 
+            //digitalWrite(13,HIGH); 
         }
 
         counter_overflow[1] = 0;

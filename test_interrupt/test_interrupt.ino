@@ -33,8 +33,12 @@ static int test_led_toggle = 1;
 byte *i2cdata = new byte[48];
 
 
-float iii[2] = {130,140};// = new byte[1];
-byte *idata = new byte[8];
+byte testi[1]={130};
+
+float iii[3] = {130,140,150};// = new byte[1];
+byte *idata = new byte[12];
+
+float data_float[12] = {0,0,0,0, 0,0,0,0, 0,0,0,0};
 
 //iii[0] = 130;
 
@@ -96,17 +100,25 @@ void loop()
     
     if(getData(0, &escdata[0])){
       Serial.println(escdata[0].RPM);
-      float data_float[12] = {escdata[0].voltage, escdata[0].current, escdata[0].RPM * 2.0f / 24.0f, escdata[0].BECvoltage, escdata[0].BECcurrent, escdata[0].temperature, escdata[0].voltage, escdata[0].current, escdata[0].RPM * 2.0f / 24.0f, escdata[0].BECvoltage, escdata[0].BECcurrent, escdata[0].temperature};
-      i2cdata = (byte *)data_float;  
+      data_float[0] = escdata[0].voltage;
+      data_float[1] = escdata[0].current;
+      data_float[2] = escdata[0].RPM * 2.0f / 24.0f;
+      data_float[3] = escdata[0].BECvoltage;
+      data_float[4] = escdata[0].BECcurrent;
+      data_float[5] = escdata[0].temperature; 
     }
-    /*
     if(getData(1, &escdata[1])){
       Serial.println(escdata[1].RPM);
-      float data_float[12] = {escdata[1].voltage, escdata[1].current, escdata[1].RPM * 2.0f / 24.0f, escdata[1].BECvoltage, escdata[1].BECcurrent, escdata[1].temperature, escdata[1].voltage, escdata[1].current, escdata[1].RPM * 2.0f / 24.0f, escdata[1].BECvoltage, escdata[1].BECcurrent, escdata[1].temperature};
-      i2cdata = (byte *)data_float;  
-    }*/
+      data_float[6] = escdata[1].voltage;
+      data_float[7] = escdata[1].current;
+      data_float[8] = escdata[1].RPM * 2.0f / 24.0f;
+      data_float[9] = escdata[1].BECvoltage;
+      data_float[10] = escdata[1].BECcurrent;
+      data_float[11] = escdata[1].temperature;
+    }
     
-    //iii[1] = 130;// = new byte[1];
+    i2cdata = (byte *)data_float;  
+    
     idata = (byte *)iii;
     
     delay(20);
@@ -114,7 +126,7 @@ void loop()
 
 void requestEvent()
 {
-    Wire.write(idata, 8);                          // Respond with message of 6 bytes
+    Wire.write(testi, 1);                          // Respond with message of 6 bytes
 }
  
 

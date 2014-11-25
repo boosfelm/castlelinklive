@@ -128,7 +128,7 @@ void loop()
 
 void requestEvent()
 {
-    Wire.write(itesti, 20);                          // Respond with message of 6 bytes
+    Wire.write(i2cdata, 48);                          // Respond with message of 6 bytes
 }
  
 

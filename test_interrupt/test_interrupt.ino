@@ -128,7 +128,7 @@ void loop()
 
 void requestEvent()
 {
-    Wire.write(i2cdata, 48);                          // Respond with message of 6 bytes
+    Wire.write(i2cdata, 48);                          // Remember to increase BUFFER_LENGTH in you Arduino wire library
 }
  
 

@@ -30,7 +30,7 @@ CASTLE_ESC_DATA escdata[2];
 
 static int test_led_toggle = 1;
 
-byte *i2cdata = new byte[48];
+//byte *i2cdata = new byte[48];//Temp variable
 
 
 float testi[5]={130,140,150,160, 170};
@@ -40,8 +40,6 @@ float iii[3] = {130,140,150};// = new byte[1];
 byte *idata = new byte[12];
 
 float data_float[12] = {0,0,0,0, 0,0,0,0, 0,0,0,0};
-
-//iii[0] = 130;
 
 void setup()
 {
@@ -64,9 +62,9 @@ void setup()
   
     pinMode(3, INPUT_PULLUP);
     pinMode(2, INPUT_PULLUP);
-    Serial.begin(2400);
+    //Serial.begin(38400);
     cli();
-    
+        
     //Configure Timer2 (8bit). Over flow at 0-255. 
     TIMSK2 |= (1<<TOIE2);                             // Enable overflow
     TCCR2A = 0;
@@ -89,7 +87,7 @@ void setup()
     EIMSK |= (1 << INT0);                             // Enable external interrupt on INT0, times with Timer1.
     
     
-    Wire.begin(2);
+    Wire.begin(2);                                    // Change to 2 or 4 for two different i2c addresses for the 2 arduinos connected to 1 pixhawk
     Wire.onRequest(requestEvent);                     // Register event
     Serial.println("Start");
     sei();
@@ -100,35 +98,39 @@ void loop()
 {
     
     if(getData(0, &escdata[0])){
-      Serial.println(escdata[0].RPM);
+      //Serial.write('r');
+      //Serial.println(escdata[0].RPM);
+      //Serial.write('v');
+      //Serial.println(escdata[0].voltage);
+      
       data_float[0] = escdata[0].voltage;
       data_float[1] = escdata[0].current;
-      data_float[2] = escdata[0].RPM * 2.0f / 24.0f;
+      data_float[2] = escdata[0].RPM * 2.0f / 24.0f;             // Hacky! Remove factor! The factor 2/24 comes from the number of poles in the motor. Compensated for in the PX4 Autopilot.cpp app
       data_float[3] = escdata[0].BECvoltage;
       data_float[4] = escdata[0].BECcurrent;
       data_float[5] = escdata[0].temperature; 
     }
     if(getData(1, &escdata[1])){
-      Serial.println(escdata[1].RPM);
+      //Serial.write('R');
+      //Serial.println(escdata[1].RPM);
+      //Serial.write('V');
+      //Serial.println(escdata[1].voltage);
+      
       data_float[6] = escdata[1].voltage;
       data_float[7] = escdata[1].current;
-      data_float[8] = escdata[1].RPM * 2.0f / 24.0f;
+      data_float[8] = escdata[1].RPM * 2.0f / 24.0f;            // Hacky! Remove factor! The factor 2/24 comes from the number of poles in the motor. Compensated for in the PX4 Autopilot.cpp app
       data_float[9] = escdata[1].BECvoltage;
       data_float[10] = escdata[1].BECcurrent;
       data_float[11] = escdata[1].temperature;
     }
     
-    i2cdata = (byte *)data_float;  
-    
-    idata = (byte *)iii;
-    itesti = (byte *)testi;
     
     delay(20);
 }
 
 void requestEvent()
 {
-    Wire.write(i2cdata, 48);                          // Respond with message of 6 bytes
+    Wire.write((byte *)data_float, 48);                          //data_float* updated whenever getdata() returns true// Respond with message of 6 bytes
 }
  
 
@@ -289,7 +291,10 @@ void reset(int index)
 
 inline void tick(unsigned int ticks, int index)
 {
-    if (ticks == 0) { return; } //timer was stopped
+    if (ticks == 0) { 
+      Serial.println("HERE");//debug. remove.
+      return; 
+    } //timer was stopped
 
     CASTLE_PRIV_DATA *d = &(data[index]);
     d->frameIdx++;

@@ -21,16 +21,18 @@ CASTLE_PRIV_DATA data[2];
 
 volatile bool flag_ready[2];
 
-volatile int my_ctr=0;
+int ictr=0;
 volatile int ctr_data[3];
 int loop_ctr = 0;
+
+volatile bool skipping_to_reset_frame[2] = {false, false};
 
 
 CASTLE_ESC_DATA escdata[2];
 
 static int test_led_toggle = 1;
 
-//byte *i2cdata = new byte[48];//Temp variable
+byte *i2cdata = new byte[48];
 
 
 float testi[5]={130,140,150,160, 170};
@@ -40,6 +42,8 @@ float iii[3] = {130,140,150};// = new byte[1];
 byte *idata = new byte[12];
 
 float data_float[12] = {0,0,0,0, 0,0,0,0, 0,0,0,0};
+
+//iii[0] = 130;
 
 void setup()
 {
@@ -62,9 +66,9 @@ void setup()
   
     pinMode(3, INPUT_PULLUP);
     pinMode(2, INPUT_PULLUP);
-    //Serial.begin(38400);
+    Serial.begin(2400);
     cli();
-        
+    
     //Configure Timer2 (8bit). Over flow at 0-255. 
     TIMSK2 |= (1<<TOIE2);                             // Enable overflow
     TCCR2A = 0;
@@ -87,7 +91,7 @@ void setup()
     EIMSK |= (1 << INT0);                             // Enable external interrupt on INT0, times with Timer1.
     
     
-    Wire.begin(2);                                    // Change to 2 or 4 for two different i2c addresses for the 2 arduinos connected to 1 pixhawk
+    Wire.begin(2);
     Wire.onRequest(requestEvent);                     // Register event
     Serial.println("Start");
     sei();
@@ -98,39 +102,35 @@ void loop()
 {
     
     if(getData(0, &escdata[0])){
-      //Serial.write('r');
-      //Serial.println(escdata[0].RPM);
-      //Serial.write('v');
-      //Serial.println(escdata[0].voltage);
-      
+      Serial.println(escdata[0].voltage);
       data_float[0] = escdata[0].voltage;
       data_float[1] = escdata[0].current;
-      data_float[2] = escdata[0].RPM;
+      data_float[2] = escdata[0].RPM * 2.0f / 24.0f;
       data_float[3] = escdata[0].BECvoltage;
       data_float[4] = escdata[0].BECcurrent;
       data_float[5] = escdata[0].temperature; 
     }
     if(getData(1, &escdata[1])){
-      //Serial.write('R');
-      //Serial.println(escdata[1].RPM);
-      //Serial.write('V');
-      //Serial.println(escdata[1].voltage);
-      
+      Serial.println(escdata[1].voltage);
       data_float[6] = escdata[1].voltage;
       data_float[7] = escdata[1].current;
-      data_float[8] = escdata[1].RPM;
+      data_float[8] = escdata[1].RPM * 2.0f / 24.0f;
       data_float[9] = escdata[1].BECvoltage;
       data_float[10] = escdata[1].BECcurrent;
       data_float[11] = escdata[1].temperature;
     }
     
+    i2cdata = (byte *)data_float;  
     
+    idata = (byte *)iii;
+    itesti = (byte *)testi;
+    //Serial.println(0);
     delay(20);
 }
 
 void requestEvent()
 {
-    Wire.write((byte *)data_float, 48);                          //data_float* updated whenever getdata() returns true// Respond with message of 6 bytes
+    Wire.write(i2cdata, 48);                          // Remember to increase BUFFER_LENGTH in you Arduino wire library
 }
  
 
@@ -171,7 +171,11 @@ ISR(INT1_vect)
     //my_ctr = my_ctr + 1;                            // For debug only
 
     if (is_waiting_for_tick[1]) {                     // Enter at E J S 
-        tick(time,1);
+        
+        if(!skipping_to_reset_frame[1]){
+            tick(time,1);
+        }
+        
         digitalWrite(13,LOW);
         TCCR2B = 0; 
         is_waiting_for_tick[1] = false;
@@ -207,10 +211,29 @@ ISR(TIMER2_OVF_vect)
     }
     // No falling edge for over 7ms after rising edge
     if (counter_overflow[1] >= 28) {                         // Enter at O
+
         if (digitalRead(3) == HIGH && is_waiting_for_tick[1]) {
             TCCR2B = 0; 
-            reset(1);
+
+    
+            if(skipping_to_reset_frame[1]){
+                skipping_to_reset_frame[1] = false;
+                data[1].frameIdx = DATA_FRAME_CNT - 1;
+            }
+            
             is_waiting_for_tick[1] = false;
+            
+             // Reached end of tick batch
+            if (data[1].frameIdx == DATA_FRAME_CNT - 1) {
+                data[1].frameIdx = FRAME_RESET;//TEST THIS              
+                clean_tick_batch(1); //Make all tick values of this batch zero
+                flag_ready[1] = false;
+            } else{
+                // Reset called at wrong time! (missed tick!).
+                skipping_to_reset_frame[1] = true;
+            }
+            
+            
         }
 
         counter_overflow[1] = 0;
@@ -232,9 +255,13 @@ ISR(INT0_vect)
   
 
     if (is_waiting_for_tick[0]) {                          // Enter at E J S
+    
         digitalWrite(13, HIGH);
-        tick(time,0);
-        TCCR1B = 0;
+
+        // skipping_to_reset_frame is true when one of the tick batch is corrupt
+        if(!skipping_to_reset_frame[0]){
+            tick(time,0);
+        }
         is_waiting_for_tick[0] = false;
         return;
     }
@@ -259,19 +286,35 @@ ISR(TIMER1_COMPA_vect)
     // Time taken = (2power8 = 256) x (prescale=8) / (clockfreq = 8Mhz) = 256 microsec per overflow. 
     // 3 overflow = 3*256 microsec = 0.7 ms low bottom we are in pwm
     if (counter_overflow[0] == 3 && digitalRead(2) == LOW) {  // Enter at C H M Q
-        TCCR1B = 0;
         EICRA |= RISING_EDGE0;
         is_in_pwm[0] = true;
         counter_overflow[0] = 0;
         return;
-    }
+    }    
 
     if (counter_overflow[0] >= 28) {                          // Enter at O
+        
         if (digitalRead(2) == HIGH && is_waiting_for_tick[0]) {
-            TCCR1B = 0;
-            reset(0);
+
+            // Reached end of corrupt batch. Unless 2 consecutive ticks missed(very very rare!)          
+            if(skipping_to_reset_frame[0]){
+                skipping_to_reset_frame[0] = false;
+                data[0].frameIdx = DATA_FRAME_CNT - 1;
+            }  
+
             is_waiting_for_tick[0] = false;
+            
+            // Reached end of tick batch
+            if (data[0].frameIdx == DATA_FRAME_CNT - 1) {
+                data[0].frameIdx = FRAME_RESET;//TEST THIS              
+                clean_tick_batch(0); //Make all tick values of this batch zero
+                flag_ready[0] = false;
+            } else{
+                // Reset called at wrong time! (missed tick!).
+                skipping_to_reset_frame[0] = true;
+            }
         }
+
         counter_overflow[0] = 0;
         return;
     }
@@ -279,33 +322,39 @@ ISR(TIMER1_COMPA_vect)
     
 }
 
-
-// castle data timeout
-void reset(int index)
-{
-    CASTLE_PRIV_DATA *d = &(data[index]);
-    d->frameIdx = FRAME_RESET;
-    flag_ready[index] = false;
+void clean_tick_batch(int i){
+    for (int j = 0; j < DATA_FRAME_CNT; j++) {
+            data[i].ticks[j] = 0;
+        }
 }
 
 
-inline void tick(unsigned int ticks, int index)
+inline void tick(unsigned int tick_time, int index)
 {
-    if (ticks == 0) { 
-      Serial.println("HERE");//debug. remove.
-      return; 
-    } //timer was stopped
+    if (tick_time == 0) { return; } //timer was stopped
 
-    CASTLE_PRIV_DATA *d = &(data[index]);
-    d->frameIdx++;
-    d->ticks[d->frameIdx] = ticks;
+    data[index].frameIdx++;
 
-    if (d->frameIdx == DATA_FRAME_CNT - 1) {
-        flag_ready[index] = true;
-        d->frameIdx = FRAME_RESET;//TEST THIS
-        //  Serial.println("READY");
+    // Hard check to assert array index in range.
+    if(data[index].frameIdx < DATA_FRAME_CNT){
+        data[index].ticks[data[index].frameIdx] = tick_time;
+
+        if (data[index].frameIdx == DATA_FRAME_CNT - 1) {
+            flag_ready[index] = true;
+        }
+
+
+    } else{             // Corrupt array index
+        //Serial.println("Error"); 
+        //Serial.println(data[index].frameIdx);
+
+        // Reset batch of data. Wait for next reset frame. Start fresh.
+        skipping_to_reset_frame[index] = true;
     }
+
 }
+
+
 
 uint8_t getData(uint8_t index, CASTLE_ESC_DATA *o)
 {

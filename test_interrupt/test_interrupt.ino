@@ -91,7 +91,7 @@ void setup()
     EIMSK |= (1 << INT0);                             // Enable external interrupt on INT0, times with Timer1.
     
     
-    Wire.begin(2);				      // Arduino I2C address  (esc_reader1 uses 4 and esc_reader2 uses 2)
+    Wire.begin(4);				      // Arduino I2C address  (esc_reader1 uses 4 and esc_reader2 uses 2)
     Wire.onRequest(requestEvent);                     // Register event
     Serial.println("Start");
     sei();
@@ -105,7 +105,7 @@ void loop()
       Serial.println(escdata[0].voltage);
       data_float[0] = escdata[0].voltage;
       data_float[1] = escdata[0].current;
-      data_float[2] = escdata[0].RPM * 2.0f / 24.0f;
+      data_float[2] = escdata[0].RPM;
       data_float[3] = escdata[0].BECvoltage;
       data_float[4] = escdata[0].BECcurrent;
       data_float[5] = escdata[0].temperature; 
@@ -114,7 +114,7 @@ void loop()
       Serial.println(escdata[1].voltage);
       data_float[6] = escdata[1].voltage;
       data_float[7] = escdata[1].current;
-      data_float[8] = escdata[1].RPM * 2.0f / 24.0f;
+      data_float[8] = escdata[1].RPM;
       data_float[9] = escdata[1].BECvoltage;
       data_float[10] = escdata[1].BECcurrent;
       data_float[11] = escdata[1].temperature;

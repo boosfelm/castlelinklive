@@ -91,7 +91,7 @@ void setup()
     EIMSK |= (1 << INT0);                             // Enable external interrupt on INT0, times with Timer1.
     
     
-    Wire.begin(2);				      // Arduino I2C address  (esc_reader1 uses 4 and esc_reader2 uses 2)
+    Wire.begin(2);				      // Arduino I2C address  (2 and 4 are currently used)
     Wire.onRequest(requestEvent);                     // Register event
     Serial.println("Start");
     sei();

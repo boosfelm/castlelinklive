@@ -26,3 +26,6 @@
 *.cproject
 *.project
 *.settings
+
+# temporary Arduino file
+*.ino~
